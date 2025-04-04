@@ -884,63 +884,70 @@ struct LOPItemDetailView: View {
 struct PlatformsView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showAddPlatform = false
-    
+
     var body: some View {
-        List {
-            ForEach(viewModel.activeProfile?.platforms ?? []) { platform in
-                NavigationLink(destination: PlatformDetailView(platform: platform)) {
-                    HStack {
-                        if let imagePath = platform.image, let uiImage = UIImage(contentsOfFile: imagePath) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 60, height: 60)
-                                .cornerRadius(8)
-                        } else {
-                            Image(systemName: "square.stack.3d.up")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 30, height: 30)
-                                .padding(15)
-                                .foregroundColor(Color("KSBlue"))
-                        }
-                        
-                        VStack(alignment: .leading) {
-                            Text(platform.name)
-                                .font(.headline)
-                            
-                            // Feature status summary
-                            HStack {
-                                FeatureIndicator(isActive: platform.bolts.isActive, label: "Bolzen")
-                                FeatureIndicator(isActive: platform.lighting.isActive, label: "Beleuchtung")
-                                FeatureIndicator(isActive: platform.safetyMeasures.isActive, label: "Sicherheit")
+        ZStack(alignment: .bottom) {
+            List {
+                ForEach(viewModel.activeProfile?.platforms ?? []) { platform in
+                    NavigationLink(destination: PlatformDetailView(platform: platform)) {
+                        HStack {
+                            if let imagePath = platform.image, let uiImage = UIImage(contentsOfFile: imagePath) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 60, height: 60)
+                                    .cornerRadius(8)
+                            } else {
+                                Image(systemName: "square.stack.3d.up")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 30, height: 30)
+                                    .padding(15)
+                                    .foregroundColor(Color("KSBlue"))
+                            }
+
+                            VStack(alignment: .leading) {
+                                Text(platform.name)
+                                    .font(.headline)
+
+                                HStack {
+                                    FeatureIndicator(isActive: platform.bolts.isActive, label: "Bolzen")
+                                    FeatureIndicator(isActive: platform.lighting.isActive, label: "Beleuchtung")
+                                    FeatureIndicator(isActive: platform.safetyMeasures.isActive, label: "Sicherheit")
+                                }
                             }
                         }
                     }
                 }
-            }
-            .onDelete { indexSet in
-                guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }) else { return }
-                
-                for index in indexSet {
-                    // Delete platform image
-                    if let imagePath = viewModel.profiles[profileIndex].platforms[index].image {
-                        viewModel.deleteImage(at: imagePath)
+                .onDelete { indexSet in
+                    guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }) else { return }
+
+                    for index in indexSet {
+                        if let imagePath = viewModel.profiles[profileIndex].platforms[index].image {
+                            viewModel.deleteImage(at: imagePath)
+                        }
                     }
+
+                    viewModel.profiles[profileIndex].platforms.remove(atOffsets: indexSet)
+                    viewModel.saveProfiles()
                 }
-                
-                viewModel.profiles[profileIndex].platforms.remove(atOffsets: indexSet)
-                viewModel.saveProfiles()
             }
-        }
-        .navigationTitle("Plattformen")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showAddPlatform = true
-                }) {
-                    Image(systemName: "plus")
+            .padding(.bottom, 70)
+            .navigationTitle("Plattformen")
+
+            Button(action: {
+                showAddPlatform = true
+            }) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Neue Plattform")
                 }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color("KSBlue"))
+                .foregroundColor(.white)
+                .cornerRadius(10)
+                .padding()
             }
         }
         .sheet(isPresented: $showAddPlatform) {
@@ -949,6 +956,7 @@ struct PlatformsView: View {
         }
     }
 }
+
 
 struct FeatureIndicator: View {
     let isActive: Bool
