@@ -31,6 +31,7 @@ class AppViewModel: ObservableObject {
         profiles.append(newProfile)
         activeProfile = newProfile
         saveProfiles()
+        objectWillChange.send()
     }
     
     private func defaultWEACategories() -> [ChecklistCategory] {
@@ -300,7 +301,6 @@ class AppViewModel: ObservableObject {
     
     func deleteProfile(_ profile: Profile) {
         if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
-            // Delete associated images
             deleteProfileImages(profile)
             
             profiles.remove(at: index)
@@ -327,7 +327,6 @@ class AppViewModel: ObservableObject {
     
     func resetActiveProfile() {
         if let profile = activeProfile {
-            // Delete associated images
             deleteProfileImages(profile)
             
             let updatedProfile = Profile(id: profile.id, name: profile.name, mode: profile.mode)
@@ -336,7 +335,6 @@ class AppViewModel: ObservableObject {
     }
     
     func deleteProfileImages(_ profile: Profile) {
-        // Delete checklist images
         for category in profile.checklists {
             for subcategory in category.subcategories {
                 for item in subcategory.items {
@@ -347,14 +345,12 @@ class AppViewModel: ObservableObject {
             }
         }
         
-        // Delete LOP images
         for lopItem in profile.lopItems {
             for imagePath in lopItem.images {
                 deleteImage(at: imagePath)
             }
         }
         
-        // Delete platform images
         for platform in profile.platforms {
             if let imagePath = platform.image {
                 deleteImage(at: imagePath)
@@ -383,7 +379,7 @@ class AppViewModel: ObservableObject {
         
         do {
             try data.write(to: fileURL)
-            saveImageToGallery(image) // Always save to Photo Gallery as requested
+            saveImageToGallery(image)
             return fileURL.path
         } catch {
             print("Error saving image: \(error)")
@@ -393,15 +389,9 @@ class AppViewModel: ObservableObject {
     
     func exportData(exportType: ExportType) -> URL? {
         guard let profile = activeProfile else { return nil }
-        
-        // Implementation for exporting data as CSV and images as ZIP
-        // This would include creating CSV files for checklists or LOP items
-        // and packaging them with images into a ZIP file
-        
         return dataManager.exportData(profile: profile, exportType: exportType)
     }
     
-    // Filtered checklists based on search query
     var filteredChecklists: [ChecklistCategory] {
         guard let profile = activeProfile else { return [] }
         
@@ -423,33 +413,37 @@ class AppViewModel: ObservableObject {
         }
     }
     
-    // Add a checklist item to LOP
-    func addToLOP(item: ChecklistItem) {
-        guard let profile = activeProfile else { return }
+    func toggleChecklistItemCompletion(for profile: Profile, category: ChecklistCategory, subcategory: ChecklistSubcategory, itemIndex: Int) {
+        guard let profileIndex = profiles.firstIndex(where: { $0.id == profile.id }),
+              let categoryIndex = profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
+              let subcategoryIndex = profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }) else {
+            return
+        }
         
-        let lopNumber = profile.lopItems.count + 1
+        profiles[profileIndex]
+            .checklists[categoryIndex]
+            .subcategories[subcategoryIndex]
+            .items[itemIndex]
+            .isCompleted.toggle()
+        
+        saveProfiles()
+    }
+    
+    func addToLOP(item: ChecklistItem) {
+        guard let profile = activeProfile,
+              let profileIndex = profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+
+        let lopNumber = profiles[profileIndex].lopItems.count + 1
         let lopItem = LOPItem(
             title: "LOP-\(lopNumber)",
             comment: item.comment,
             images: item.images
         )
-        
-        activeProfile?.lopItems.append(lopItem)
+
+        profiles[profileIndex].lopItems.append(lopItem)
+        activeProfile = profiles[profileIndex]
         saveProfiles()
-    }
-    
-    // Add a new platform (only for WEA mode)
-    func addPlatform(name: String, image: UIImage?) {
-        guard let profile = activeProfile, profile.mode == .wea else { return }
-        
-        var imagePath: String? = nil
-        if let image = image {
-            imagePath = saveImage(image)
-        }
-        
-        let platform = Platform(name: name, image: imagePath)
-        activeProfile?.platforms.append(platform)
-        saveProfiles()
+        objectWillChange.send()
     }
 }
 

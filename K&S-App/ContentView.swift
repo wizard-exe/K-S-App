@@ -1,9 +1,9 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = AppViewModel()
+    @EnvironmentObject var viewModel: AppViewModel
     @State private var showMenu = false
-    
+
     var body: some View {
         ZStack {
             NavigationView {
@@ -54,26 +54,26 @@ struct ContentView: View {
 struct WelcomeView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showCreateProfile = false
-    
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            
+
             Image("Logo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 150, height: 150)
                 .frame(width: 200, height: 200)
                 .background(Color.white)
-            
+
             Text("Erstellen Sie ein Profil, um mit der technischen Dokumentation zu beginnen.")
                 .font(.body)
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
-            
+
             Spacer()
-            
+
             Button(action: {
                 showCreateProfile = true
             }) {
@@ -100,16 +100,16 @@ struct WelcomeView: View {
 struct CreateProfileView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Environment(\.presentationMode) var presentationMode
-    
+
     @State private var profileName = ""
     @State private var selectedMode: AppMode = .wea
-    
+
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("Profil-Informationen")) {
                     TextField("Profilname", text: $profileName)
-                    
+
                     Picker("Modus", selection: $selectedMode) {
                         Text("Windenergieanlage").tag(AppMode.wea)
                         Text("Photovoltaik").tag(AppMode.pv)
@@ -148,13 +148,11 @@ struct SidebarView: View {
                         isShowing = false
                     }
                 }
-            
+
             HStack {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
-        
                         Spacer()
-                        
                         Button(action: {
                             withAnimation {
                                 isShowing = false
@@ -166,9 +164,9 @@ struct SidebarView: View {
                     }
                     .padding()
                     .padding(.top, 80)
-                    
+
                     Divider()
-                    
+
                     List {
                         ForEach(viewModel.profiles) { profile in
                             Button(action: {
@@ -180,13 +178,13 @@ struct SidebarView: View {
                                 HStack {
                                     Text(profile.name)
                                         .foregroundColor(.primary)
-                                    
+
                                     Spacer()
-                                    
+
                                     Text(profile.mode.rawValue)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
-                                    
+
                                     if viewModel.activeProfile?.id == profile.id {
                                         Image(systemName: "checkmark")
                                             .foregroundColor(Color("KSBlue"))
@@ -202,7 +200,7 @@ struct SidebarView: View {
                                 }
                             }
                         }
-                        
+
                         Button(action: {
                             showCreateProfile = true
                         }) {
@@ -214,16 +212,15 @@ struct SidebarView: View {
                         }
                     }
                     .listStyle(PlainListStyle())
-                    
+
                     Spacer()
                 }
                 .frame(width: 300)
                 .background(Color.white)
                 .edgesIgnoringSafeArea(.vertical)
-                
+
                 Spacer()
             }
-
         }
         .edgesIgnoringSafeArea(.all)
         .sheet(isPresented: $showCreateProfile) {
@@ -233,7 +230,7 @@ struct SidebarView: View {
         .alert(isPresented: $showDeleteConfirmation) {
             Alert(
                 title: Text("Profil löschen"),
-                message: Text("Möchtest du das Profil „\(profileToDelete?.name ?? "")“ wirklich löschen?"),
+                message: Text("Möchtest du das Profil \(profileToDelete?.name ?? "") wirklich löschen?"),
                 primaryButton: .destructive(Text("Löschen")) {
                     if let profile = profileToDelete {
                         viewModel.deleteProfile(profile)
@@ -290,21 +287,12 @@ struct ChecklistView: View {
     @EnvironmentObject var viewModel: AppViewModel
 
     var body: some View {
-        VStack {
-            SearchBar(text: $viewModel.searchQuery)
-                .padding(.horizontal)
-
-            List {
-                ForEach(viewModel.filteredChecklists) { category in
-                    Section(header: Text(category.name).font(.title3).fontWeight(.bold)) {
-                        ForEach(category.subcategories) { subcategory in
-                            NavigationLink(destination: ChecklistSubcategoryItemListView(
-                                category: category,
-                                subcategory: subcategory
-                            )) {
-                                Text(subcategory.name)
-                                    .font(.headline)
-                            }
+        List {
+            ForEach(viewModel.filteredChecklists) { category in
+                Section(header: Text(category.name).font(.headline)) {
+                    ForEach(category.subcategories) { subcategory in
+                        NavigationLink(destination: ChecklistSubcategoryItemListView(category: category, subcategory: subcategory)) {
+                            Text(subcategory.name)
                         }
                     }
                 }
@@ -314,143 +302,139 @@ struct ChecklistView: View {
     }
 }
 
+extension Int: Identifiable {
+    public var id: Int { self }
+}
+
 struct ChecklistSubcategoryItemListView: View {
     @EnvironmentObject var viewModel: AppViewModel
     let category: ChecklistCategory
     let subcategory: ChecklistSubcategory
 
     @State private var showImagePicker = false
-    @State private var selectedImage: UIImage?
+    @State private var selectedItemIndex: Int? = nil
     @State private var sourceType: UIImagePickerController.SourceType = .camera
-    @State private var currentItemIndexForImage: Int?
-    @State private var navigateToDetailIndex: Int?
+    @State private var selectedImage: UIImage?
+    @State private var navigationTargetIndex: Int? = nil
 
     var body: some View {
         List {
-            Section(header: Text("Prüfbemerkungen").font(.headline)) {
-                ForEach(subcategory.items.indices, id: \.self) { index in
-                    let item = subcategory.items[index]
+            if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+               let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
+               let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }) {
 
-                    HStack {
-                        // Checkbox
+                ForEach(viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items.indices, id: \.self) { index in
+                    let binding = $viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items[index]
+                    let item = binding.wrappedValue
+
+                    HStack(spacing: 12) {
                         Button(action: {
-                            toggleCompletion(for: index)
+                            binding.isCompleted.wrappedValue.toggle()
+                            viewModel.saveProfiles()
                         }) {
-                            Image(systemName: item.isCompleted ? "checkmark.square" : "square")
-                                .foregroundColor(.blue)
+                            Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                                .foregroundColor(Color("KSBlue"))
                         }
                         .buttonStyle(BorderlessButtonStyle())
 
-                        // Item-Name
                         Text(item.name)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
 
                         Spacer()
 
-                        // LOP-Indikator
-                        if item.isLOP {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                        }
+                        HStack() {
+                            Button(action: {
+                                sourceType = .camera
+                                selectedItemIndex = index
+                                showImagePicker = true
+                            }) {
+                                Image(systemName: "camera")
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
 
-                        // Kamera-Symbol
-                        Button(action: {
-                            currentItemIndexForImage = index
-                            sourceType = .camera
-                            showImagePicker = true
-                        }) {
-                            Image(systemName: "camera")
-                                .foregroundColor(.gray)
+                            Button(action: {
+                                navigationTargetIndex = index
+                            }) {
+                                Image(systemName: "info.circle")
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+                            
+                            ZStack {
+                                NavigationLink(
+                                    destination: detailView(for: index),
+                                    tag: index,
+                                    selection: $navigationTargetIndex,
+                                    label: { EmptyView() }
+                                )
+                                .frame(width: 0, height: 0)
+                                .hidden()
+                            }
                         }
-                        .buttonStyle(BorderlessButtonStyle())
-
-                        // Info-Button
-                        Button(action: {
-                            navigateToDetailIndex = index
-                        }) {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.gray)
-                        }
-                        .buttonStyle(BorderlessButtonStyle())
                     }
                     .contentShape(Rectangle())
-                    .background(
-                        NavigationLink(
-                            destination: Group {
-                                if let i = navigateToDetailIndex {
-                                    ChecklistItemDetailView(
-                                        category: category,
-                                        subcategory: subcategory,
-                                        itemIndex: i
-                                    )
-                                }
-                            },
-                            isActive: Binding(
-                                get: { navigateToDetailIndex != nil },
-                                set: { newValue in
-                                    if !newValue {
-                                        navigateToDetailIndex = nil
-                                    }
-                                }
-                            )
-                        ) {
-                            EmptyView()
+                    .onTapGesture {
+                        if !isTapInsideButtonArea() {
+                            sourceType = .camera
+                            selectedItemIndex = index
+                            showImagePicker = true
                         }
-                        .hidden()
-                    )
+                    }
                 }
             }
         }
         .navigationTitle(subcategory.name)
-        .sheet(isPresented: $showImagePicker) {
-            ImagePicker(
-                sourceType: sourceType,
-                selectedImage: $selectedImage,
-                isPresented: $showImagePicker
-            )
-            .onDisappear {
-                handleImagePickerDismiss()
-            }
+        .fullScreenCover(isPresented: $showImagePicker) {
+            ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
+                .onDisappear {
+                    if let index = selectedItemIndex,
+                       let image = selectedImage,
+                       let path = viewModel.saveImage(image),
+                       let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+                       let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
+                       let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }) {
+
+                        viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items[index].images.append(path)
+                        viewModel.saveProfiles()
+                        selectedImage = nil
+                    }
+                }
         }
     }
 
-    private func handleImagePickerDismiss() {
-        guard let index = currentItemIndexForImage,
-              let image = selectedImage,
-              let path = viewModel.saveImage(image),
-              let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-              let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
-              let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }) else {
-            return
+    private func detailView(for index: Int) -> some View {
+        if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+           let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
+           let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }) {
+
+            let binding = $viewModel.profiles[profileIndex]
+                .checklists[categoryIndex]
+                .subcategories[subcategoryIndex]
+                .items[index]
+
+            return AnyView(ChecklistItemDetailView(
+                category: category,
+                subcategory: subcategory,
+                itemIndex: index,
+                item: binding
+            ).environmentObject(viewModel))
         }
 
-        viewModel.profiles[profileIndex]
-            .checklists[categoryIndex]
-            .subcategories[subcategoryIndex]
-            .items[index]
-            .images.append(path)
-
-        viewModel.saveProfiles()
-        selectedImage = nil
+        return AnyView(EmptyView())
     }
 
-    private func toggleCompletion(for index: Int) {
-        guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-              let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
-              let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }) else {
-            return
-        }
-
-        viewModel.profiles[profileIndex]
-            .checklists[categoryIndex]
-            .subcategories[subcategoryIndex]
-            .items[index]
-            .isCompleted.toggle()
-
-        viewModel.saveProfiles()
+    func isTapInsideButtonArea() -> Bool {
+        false
     }
 }
 
+private extension UIViewController {
+    @objc func dismissSelf() {
+        dismiss(animated: true, completion: nil)
+    }
+}
 
 struct ChecklistItemDetailView: View {
     @EnvironmentObject var viewModel: AppViewModel
@@ -458,64 +442,22 @@ struct ChecklistItemDetailView: View {
     let subcategory: ChecklistSubcategory
     let itemIndex: Int
 
+    @Binding var item: ChecklistItem
+
     @State private var showImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .camera
-    @State private var selectedImage: UIImage?
-    @State private var showFullScreenImage = false
+    @State private var selectedImage: UIImage? = nil
+    @State private var showingFullScreenImage = false
     @State private var fullScreenImagePath: String?
-
-    var item: Binding<ChecklistItem> {
-        Binding<ChecklistItem>(
-            get: {
-                guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-                      let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
-                      let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }),
-                      itemIndex < viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items.count else {
-                    return ChecklistItem(id: UUID(), name: "")
-                }
-                return viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items[itemIndex]
-            },
-            set: { newValue in
-                guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-                      let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
-                      let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }),
-                      itemIndex < viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items.count else {
-                    return
-                }
-                viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items[itemIndex] = newValue
-                viewModel.saveProfiles()
-            }
-        )
-    }
 
     var body: some View {
         Form {
-            Section(header: Text("Status")) {
-                Toggle("Offener Punkt (LOP)", isOn: Binding(
-                    get: { item.wrappedValue.isLOP },
-                    set: { newValue in
-                        item.wrappedValue.isLOP = newValue
-                        if newValue {
-                            viewModel.addToLOP(item: item.wrappedValue)
-                        } else {
-                            // Entfernen aus LOP
-                            if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }) {
-                                viewModel.profiles[profileIndex].lopItems.removeAll { lopItem in
-                                    lopItem.comment == item.wrappedValue.comment && lopItem.images == item.wrappedValue.images
-                                }
-                                viewModel.saveProfiles()
-                            }
-                        }
-                    }
-                ))
-            }
-
             Section(header: Text("Kommentar")) {
-                TextEditor(text: Binding(
-                    get: { item.wrappedValue.comment },
-                    set: { item.wrappedValue.comment = $0 }
-                ))
-                .frame(minHeight: 100)
+                TextEditor(text: $item.comment)
+                    .frame(minHeight: 100)
+                    .onChange(of: item.comment) { _ in
+                        viewModel.saveProfiles()
+                    }
             }
 
             Section(header: Text("Bilder")) {
@@ -524,8 +466,12 @@ struct ChecklistItemDetailView: View {
                         sourceType = .camera
                         showImagePicker = true
                     }) {
-                        Label("Foto aufnehmen", systemImage: "camera")
+                        HStack {
+                            Image(systemName: "camera")
+                            Text("Foto aufnehmen")
+                        }
                     }
+                    .buttonStyle(BorderlessButtonStyle())
 
                     Spacer()
 
@@ -533,63 +479,92 @@ struct ChecklistItemDetailView: View {
                         sourceType = .photoLibrary
                         showImagePicker = true
                     }) {
-                        Label("Aus Galerie", systemImage: "photo.on.rectangle")
+                        HStack {
+                            Image(systemName: "photo.on.rectangle")
+                            Text("Aus Galerie")
+                        }
                     }
+                    .buttonStyle(BorderlessButtonStyle())
                 }
 
-                if !item.wrappedValue.images.isEmpty {
+                if !item.images.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(item.wrappedValue.images, id: \.self) { imagePath in
-                                if let uiImage = UIImage(contentsOfFile: imagePath) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 100, height: 100)
-                                        .cornerRadius(8)
-                                        .onTapGesture {
-                                            fullScreenImagePath = imagePath
-                                            showFullScreenImage = true
-                                        }
-                                        .contextMenu {
-                                            Button(role: .destructive) {
-                                                viewModel.deleteImage(at: imagePath)
-                                                if let index = item.wrappedValue.images.firstIndex(of: imagePath) {
-                                                    item.wrappedValue.images.remove(at: index)
-                                                }
-                                            } label: {
-                                                Label("Löschen", systemImage: "trash")
+                        HStack(spacing: 16) {
+                            ForEach(item.images, id: \.self) { path in
+                                if FileManager.default.fileExists(atPath: path),
+                                   let uiImage = UIImage(contentsOfFile: path) {
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 100, height: 100)
+                                            .cornerRadius(8)
+                                            .clipped()
+                                            .onTapGesture {
+                                                fullScreenImagePath = path
+                                                showingFullScreenImage = true
                                             }
+
+                                        Button(action: {
+                                            withAnimation {
+                                                viewModel.deleteImage(at: path)
+                                                if let index = item.images.firstIndex(of: path) {
+                                                    item.images.remove(at: index)
+                                                    viewModel.saveProfiles()
+                                                }
+                                            }
+                                        }) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(.red)
+                                                .background(Color.white.clipShape(Circle()))
                                         }
+                                        .offset(x: -8, y: 8)
+                                    }
                                 }
                             }
                         }
+                        .padding(.top, 8)
                     }
                 }
             }
+
+            Section {
+                Button(action: {
+                    viewModel.addToLOP(item: item)
+                }) {
+                    Label("Zu LOP hinzufügen", systemImage: "plus.circle")
+                        .foregroundColor(.red)
+                }
+            }
         }
-        .navigationTitle(item.wrappedValue.name)
-        .sheet(isPresented: $showImagePicker) {
+        .navigationTitle("Details")
+        .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
-                    if let image = selectedImage, let path = viewModel.saveImage(image) {
-                        item.wrappedValue.images.append(path)
-                        selectedImage = nil
+                    DispatchQueue.main.async {
+                        if let image = selectedImage,
+                           let path = viewModel.saveImage(image) {
+                            item.images.append(path)
+                            viewModel.saveProfiles()
+                            selectedImage = nil
+                        }
                     }
                 }
         }
-        .fullScreenCover(isPresented: $showFullScreenImage) {
-            if let path = fullScreenImagePath, let uiImage = UIImage(contentsOfFile: path) {
-                FullScreenImageView(image: uiImage, isPresented: $showFullScreenImage)
+        .fullScreenCover(isPresented: $showingFullScreenImage) {
+            if let path = fullScreenImagePath,
+               let uiImage = UIImage(contentsOfFile: path) {
+                FullScreenImageView(image: uiImage, isPresented: $showingFullScreenImage)
             }
         }
     }
 }
 
-
 struct LOPView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showAddLOP = false
+    @State private var lopItemToDelete: LOPItem?
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -605,34 +580,21 @@ struct LOPView: View {
                                     .font(.subheadline)
                                     .lineLimit(2)
                             }
-
-                            if !lopItem.images.isEmpty {
-                                HStack {
-                                    Image(systemName: "photo")
-                                    Text("\(lopItem.images.count)")
-                                }
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            }
                         }
                     }
-                }
-                .onDelete { indexSet in
-                    guard let lopItems = viewModel.activeProfile?.lopItems else { return }
-
-                    for index in indexSet {
-                        for imagePath in lopItems[index].images {
-                            viewModel.deleteImage(at: imagePath)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            lopItemToDelete = lopItem
+                            showDeleteConfirmation = true
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
                         }
                     }
-
-                    guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }) else { return }
-                    viewModel.profiles[profileIndex].lopItems.remove(atOffsets: indexSet)
-                    viewModel.saveProfiles()
                 }
             }
-            .padding(.bottom, 70) // Platz für Button lassen
+            .padding(.bottom, 70)
             .navigationTitle("LOP")
+            .navigationBarBackButtonHidden(true)
 
             Button(action: {
                 showAddLOP = true
@@ -653,20 +615,45 @@ struct LOPView: View {
             AddLOPItemView()
                 .environmentObject(viewModel)
         }
+        .alert(isPresented: $showDeleteConfirmation) {
+            Alert(
+                title: Text("LOP-Eintrag löschen"),
+                message: Text("Möchtest du den LOP-Eintrag wirklich löschen?"),
+                primaryButton: .destructive(Text("Löschen")) {
+                    if let item = lopItemToDelete {
+                        deleteLOPItem(item)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+        }
+    }
+
+    private func deleteLOPItem(_ item: LOPItem) {
+        guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+              let itemIndex = viewModel.profiles[profileIndex].lopItems.firstIndex(where: { $0.id == item.id }) else {
+            return
+        }
+
+        for imagePath in viewModel.profiles[profileIndex].lopItems[itemIndex].images {
+            viewModel.deleteImage(at: imagePath)
+        }
+
+        viewModel.profiles[profileIndex].lopItems.remove(at: itemIndex)
+        viewModel.saveProfiles()
     }
 }
-
 
 struct AddLOPItemView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Environment(\.presentationMode) var presentationMode
-    
+
     @State private var comment = ""
     @State private var showImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .camera
     @State private var selectedImage: UIImage?
     @State private var imagePaths: [String] = []
-    
+
     var body: some View {
         NavigationView {
             Form {
@@ -674,7 +661,7 @@ struct AddLOPItemView: View {
                     TextEditor(text: $comment)
                         .frame(minHeight: 100)
                 }
-                
+
                 Section(header: Text("Bilder")) {
                     HStack {
                         Button(action: {
@@ -686,9 +673,9 @@ struct AddLOPItemView: View {
                                 Text("Foto aufnehmen")
                             }
                         }
-                        
+
                         Spacer()
-                        
+
                         Button(action: {
                             sourceType = .photoLibrary
                             showImagePicker = true
@@ -699,7 +686,7 @@ struct AddLOPItemView: View {
                             }
                         }
                     }
-                    
+
                     if !imagePaths.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack {
@@ -728,43 +715,46 @@ struct AddLOPItemView: View {
                 }
             }
             .navigationTitle("Neuer LOP-Eintrag")
-                        .navigationBarItems(
-                            leading: Button("Abbrechen") {
-                                for path in imagePaths {
-                                    viewModel.deleteImage(at: path)
-                                }
-                                presentationMode.wrappedValue.dismiss()
-                            },
-                            trailing: Button("Speichern") {
-                                guard let profile = viewModel.activeProfile else { return }
-                                
-                                let lopNumber = profile.lopItems.count + 1
-                                let lopItem = LOPItem(
-                                    title: "LOP-\(lopNumber)",
-                                    comment: comment,
-                                    images: imagePaths
-                                )
-                                
-                                guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
-                                viewModel.profiles[profileIndex].lopItems.append(lopItem)
-                                viewModel.saveProfiles()
-                                
-                                presentationMode.wrappedValue.dismiss()
-                            }
-                            .disabled(comment.isEmpty)
-                        )
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Abbrechen") {
+                    for path in imagePaths {
+                        viewModel.deleteImage(at: path)
                     }
-                    .sheet(isPresented: $showImagePicker) {
-                        ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
-                            .onDisappear {
-                                if let image = selectedImage, let path = viewModel.saveImage(image) {
-                                    imagePaths.append(path)
-                                    selectedImage = nil
-                                }
-                            }
+                    presentationMode.wrappedValue.dismiss()
+                }
+                .foregroundColor(.white),
+
+                trailing: Button("Speichern") {
+                    guard let profile = viewModel.activeProfile,
+                          let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+
+                    let lopNumber = viewModel.profiles[profileIndex].lopItems.count + 1
+                    let lopItem = LOPItem(title: "LOP-\(lopNumber)", comment: comment, images: imagePaths)
+
+                    presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.async {
+                        viewModel.profiles[profileIndex].lopItems.append(lopItem)
+                        viewModel.activeProfile = viewModel.profiles[profileIndex]
+                        viewModel.saveProfiles()
                     }
                 }
-            }
+                .disabled(comment.isEmpty)
+                .foregroundColor(.white)
+            )
+        }
+        .navigationBarBackButtonHidden(true)
+        .sheet(isPresented: $showImagePicker) {
+            ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
+                .onDisappear {
+                    if let image = selectedImage, let path = viewModel.saveImage(image) {
+                        imagePaths.append(path)
+                        selectedImage = nil
+                    }
+                }
+        }
+    }
+}
 
 struct LOPItemDetailView: View {
     @EnvironmentObject var viewModel: AppViewModel
@@ -884,56 +874,30 @@ struct LOPItemDetailView: View {
 struct PlatformsView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showAddPlatform = false
+    @State private var platformToDelete: Platform?
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             List {
                 ForEach(viewModel.activeProfile?.platforms ?? []) { platform in
                     NavigationLink(destination: PlatformDetailView(platform: platform)) {
-                        HStack {
-                            if let imagePath = platform.image, let uiImage = UIImage(contentsOfFile: imagePath) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 60, height: 60)
-                                    .cornerRadius(8)
-                            } else {
-                                Image(systemName: "square.stack.3d.up")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 30, height: 30)
-                                    .padding(15)
-                                    .foregroundColor(Color("KSBlue"))
-                            }
-
-                            VStack(alignment: .leading) {
-                                Text(platform.name)
-                                    .font(.headline)
-
-                                HStack {
-                                    FeatureIndicator(isActive: platform.bolts.isActive, label: "Bolzen")
-                                    FeatureIndicator(isActive: platform.lighting.isActive, label: "Beleuchtung")
-                                    FeatureIndicator(isActive: platform.safetyMeasures.isActive, label: "Sicherheit")
-                                }
-                            }
+                        Text(platform.name)
+                            .font(.headline)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            platformToDelete = platform
+                            showDeleteConfirmation = true
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
                         }
                     }
-                }
-                .onDelete { indexSet in
-                    guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }) else { return }
-
-                    for index in indexSet {
-                        if let imagePath = viewModel.profiles[profileIndex].platforms[index].image {
-                            viewModel.deleteImage(at: imagePath)
-                        }
-                    }
-
-                    viewModel.profiles[profileIndex].platforms.remove(atOffsets: indexSet)
-                    viewModel.saveProfiles()
                 }
             }
             .padding(.bottom, 70)
             .navigationTitle("Plattformen")
+            .navigationBarBackButtonHidden(true)
 
             Button(action: {
                 showAddPlatform = true
@@ -954,292 +918,179 @@ struct PlatformsView: View {
             AddPlatformView()
                 .environmentObject(viewModel)
         }
-    }
-}
-
-
-struct FeatureIndicator: View {
-    let isActive: Bool
-    let label: String
-    
-    var body: some View {
-        HStack(spacing: 2) {
-            Circle()
-                .fill(isActive ? Color.green : Color.gray)
-                .frame(width: 8, height: 8)
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
+        .alert(isPresented: $showDeleteConfirmation) {
+            Alert(
+                title: Text("Plattform löschen"),
+                message: Text("Möchtest du die Plattform wirklich löschen?"),
+                primaryButton: .destructive(Text("Löschen")) {
+                    if let platform = platformToDelete {
+                        deletePlatform(platform)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
         }
-        .padding(.trailing, 4)
+    }
+
+    private func deletePlatform(_ platform: Platform) {
+        guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+              let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) else {
+            return
+        }
+
+        if let imagePath = viewModel.profiles[profileIndex].platforms[platformIndex].image {
+            viewModel.deleteImage(at: imagePath)
+        }
+
+        viewModel.profiles[profileIndex].platforms.remove(at: platformIndex)
+        viewModel.saveProfiles()
     }
 }
 
 struct AddPlatformView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Environment(\.presentationMode) var presentationMode
-    
-    @State private var platformName = ""
+
+    @State private var name = ""
+    @State private var selectedImage: UIImage?
     @State private var showImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .camera
-    @State private var selectedImage: UIImage?
-    
+
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("Name")) {
-                    TextField("Plattformname", text: $platformName)
-                }
-                
-                Section(header: Text("Bild")) {
-                    HStack {
-                        Button(action: {
-                            sourceType = .camera
-                            showImagePicker = true
-                        }) {
-                            HStack {
-                                Image(systemName: "camera")
-                                Text("Foto aufnehmen")
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            sourceType = .photoLibrary
-                            showImagePicker = true
-                        }) {
-                            HStack {
-                                Image(systemName: "photo.on.rectangle")
-                                Text("Aus Galerie")
-                            }
-                        }
-                    }
-                    
-                    if let image = selectedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 200)
-                            .cornerRadius(8)
-                    }
+                    TextField("Plattform-Name", text: $name)
                 }
             }
             .navigationTitle("Neue Plattform")
             .navigationBarItems(
                 leading: Button("Abbrechen") {
                     presentationMode.wrappedValue.dismiss()
-                },
-                trailing: Button("Hinzufügen") {
-                    viewModel.addPlatform(name: platformName, image: selectedImage)
+                }
+                .foregroundColor(.white),
+                trailing: Button("Speichern") {
+                    addPlatform()
                     presentationMode.wrappedValue.dismiss()
                 }
-                .disabled(platformName.isEmpty)
+                .foregroundColor(.white)
+                .disabled(name.isEmpty)
             )
         }
-        .sheet(isPresented: $showImagePicker) {
-            ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
-        }
+    }
+
+    private func addPlatform() {
+        guard let profile = viewModel.activeProfile,
+              let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+
+        let imagePath = selectedImage.flatMap { viewModel.saveImage($0) }
+
+        let platform = Platform(name: name, image: imagePath)
+        viewModel.profiles[profileIndex].platforms.append(platform)
+        viewModel.activeProfile = viewModel.profiles[profileIndex]
+        viewModel.saveProfiles()
+        viewModel.objectWillChange.send()
     }
 }
 
 struct PlatformDetailView: View {
     @EnvironmentObject var viewModel: AppViewModel
     let platform: Platform
-    
-    @State private var platformName: String
-    @State private var boltsActive: Bool
-    @State private var boltsComment: String
-    @State private var lightingActive: Bool
-    @State private var lightingComment: String
-    @State private var cableFasteningActive: Bool
-    @State private var cableFasteningComment: String
-    @State private var markingsActive: Bool
-    @State private var markingsComment: String
-    @State private var safetyMeasuresActive: Bool
-    @State private var safetyMeasuresComment: String
-    @State private var obstacleBeaconActive: Bool
-    @State private var obstacleBeaconComment: String
-    
+
+    @State private var selectedItemIndex: Int? = nil
     @State private var showImagePicker = false
-    @State private var sourceType: UIImagePickerController.SourceType = .camera
     @State private var selectedImage: UIImage?
-    @State private var showingFullScreenImage = false
-    
-    init(platform: Platform) {
-        self.platform = platform
-        _platformName = State(initialValue: platform.name)
-        _boltsActive = State(initialValue: platform.bolts.isActive)
-        _boltsComment = State(initialValue: platform.bolts.comment)
-        _lightingActive = State(initialValue: platform.lighting.isActive)
-        _lightingComment = State(initialValue: platform.lighting.comment)
-        _cableFasteningActive = State(initialValue: platform.cableFastening.isActive)
-        _cableFasteningComment = State(initialValue: platform.cableFastening.comment)
-        _markingsActive = State(initialValue: platform.markings.isActive)
-        _markingsComment = State(initialValue: platform.markings.comment)
-        _safetyMeasuresActive = State(initialValue: platform.safetyMeasures.isActive)
-        _safetyMeasuresComment = State(initialValue: platform.safetyMeasures.comment)
-        _obstacleBeaconActive = State(initialValue: platform.obstacleBeacon.isActive)
-        _obstacleBeaconComment = State(initialValue: platform.obstacleBeacon.comment)
-    }
-    
+    @State private var sourceType: UIImagePickerController.SourceType = .camera
+    @State private var navigationTargetIndex: Int? = nil
+
     var body: some View {
-        Form {
-            Section(header: Text("Name")) {
-                TextField("Plattformname", text: $platformName)
-                    .onChange(of: platformName) { _ in updatePlatform() }
-            }
-            
-            Section(header: Text("Bild")) {
-                HStack {
-                    Button(action: {
-                        sourceType = .camera
-                        showImagePicker = true
-                    }) {
+        List {
+            if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+               let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) {
+
+                ForEach(viewModel.profiles[profileIndex].platforms[platformIndex].items.indices, id: \.self) { index in
+                    let binding = $viewModel.profiles[profileIndex].platforms[platformIndex].items[index]
+                    let item = binding.wrappedValue
+
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            binding.isCompleted.wrappedValue.toggle()
+                            viewModel.saveProfiles()
+                        }) {
+                            Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                                .foregroundColor(Color("KSBlue"))
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+
+                        Text(item.name)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer()
+
                         HStack {
-                            Image(systemName: "camera")
-                            Text("Foto aufnehmen")
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        sourceType = .photoLibrary
-                        showImagePicker = true
-                    }) {
-                        HStack {
-                            Image(systemName: "photo.on.rectangle")
-                            Text("Aus Galerie")
-                        }
-                    }
-                }
-                
-                if let imagePath = platform.image, let uiImage = UIImage(contentsOfFile: imagePath) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 200)
-                        .cornerRadius(8)
-                        .onTapGesture {
-                            showingFullScreenImage = true
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-                                      let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) else {
-                                    return
-                                }
-                                
-                                if let imagePath = viewModel.profiles[profileIndex].platforms[platformIndex].image {
-                                    viewModel.deleteImage(at: imagePath)
-                                    viewModel.profiles[profileIndex].platforms[platformIndex].image = nil
-                                    viewModel.saveProfiles()
-                                }
-                            } label: {
-                                Label("Löschen", systemImage: "trash")
+                            Button(action: {
+                                sourceType = .camera
+                                selectedItemIndex = index
+                                showImagePicker = true
+                            }) {
+                                Image(systemName: "camera")
                             }
+
+                            Button(action: {
+                                navigationTargetIndex = index
+                            }) {
+                                Image(systemName: "info.circle")
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+
+                            NavigationLink(
+                                destination: detailView(for: index),
+                                tag: index,
+                                selection: $navigationTargetIndex,
+                                label: { EmptyView() }
+                            )
+                            .frame(width: 0)
+                            .hidden()
                         }
+                    }
                 }
-            }
-            
-            FeatureSection(title: "Bolzen", isActive: $boltsActive, comment: $boltsComment) {
-                updatePlatform()
-            }
-            
-            FeatureSection(title: "Beleuchtung", isActive: $lightingActive, comment: $lightingComment) {
-                updatePlatform()
-            }
-            
-            FeatureSection(title: "Kabelbefestigung", isActive: $cableFasteningActive, comment: $cableFasteningComment) {
-                updatePlatform()
-            }
-            
-            FeatureSection(title: "Markierungen", isActive: $markingsActive, comment: $markingsComment) {
-                updatePlatform()
-            }
-            
-            FeatureSection(title: "Sicherheitsmaßnahmen", isActive: $safetyMeasuresActive, comment: $safetyMeasuresComment) {
-                updatePlatform()
-            }
-            
-            FeatureSection(title: "Hindernisbefeuerung", isActive: $obstacleBeaconActive, comment: $obstacleBeaconComment) {
-                updatePlatform()
             }
         }
         .navigationTitle(platform.name)
-        .sheet(isPresented: $showImagePicker) {
+        .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
-                    if let image = selectedImage {
-                        updatePlatformImage(image)
+                    if let index = selectedItemIndex,
+                       let image = selectedImage,
+                       let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+                       let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) {
+
+                        viewModel.profiles[profileIndex].platforms[platformIndex].items[index].images.append(viewModel.saveImage(image) ?? "")
+                        viewModel.saveProfiles()
                         selectedImage = nil
                     }
                 }
         }
-        .fullScreenCover(isPresented: $showingFullScreenImage) {
-            if let imagePath = platform.image, let uiImage = UIImage(contentsOfFile: imagePath) {
-                FullScreenImageView(image: uiImage, isPresented: $showingFullScreenImage)
-            }
-        }
     }
-    
-    private func updatePlatform() {
-        guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-              let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) else {
-            return
+
+    private func detailView(for index: Int) -> some View {
+        if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+           let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) {
+            let binding = $viewModel.profiles[profileIndex].platforms[platformIndex].items[index]
+
+            return AnyView(ChecklistItemDetailView(
+                category: .init(name: platform.name, subcategories: []),
+                subcategory: .init(name: "", items: []),
+                itemIndex: index,
+                item: binding
+            ).environmentObject(viewModel))
         }
-        
-        viewModel.profiles[profileIndex].platforms[platformIndex].name = platformName
-        viewModel.profiles[profileIndex].platforms[platformIndex].bolts = FeatureStatus(isActive: boltsActive, comment: boltsComment)
-        viewModel.profiles[profileIndex].platforms[platformIndex].lighting = FeatureStatus(isActive: lightingActive, comment: lightingComment)
-        viewModel.profiles[profileIndex].platforms[platformIndex].cableFastening = FeatureStatus(isActive: cableFasteningActive, comment: cableFasteningComment)
-        viewModel.profiles[profileIndex].platforms[platformIndex].markings = FeatureStatus(isActive: markingsActive, comment: markingsComment)
-        viewModel.profiles[profileIndex].platforms[platformIndex].safetyMeasures = FeatureStatus(isActive: safetyMeasuresActive, comment: safetyMeasuresComment)
-        viewModel.profiles[profileIndex].platforms[platformIndex].obstacleBeacon = FeatureStatus(isActive: obstacleBeaconActive, comment: obstacleBeaconComment)
-        
-        viewModel.saveProfiles()
-    }
-    
-    private func updatePlatformImage(_ image: UIImage) {
-        guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-              let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) else {
-            return
-        }
-        
-        // Delete old image if it exists
-        if let imagePath = viewModel.profiles[profileIndex].platforms[platformIndex].image {
-            viewModel.deleteImage(at: imagePath)
-        }
-        
-        // Save new image
-        if let path = viewModel.saveImage(image) {
-            viewModel.profiles[profileIndex].platforms[platformIndex].image = path
-            viewModel.saveProfiles()
-        }
+        return AnyView(EmptyView())
     }
 }
 
-struct FeatureSection: View {
-    let title: String
-    @Binding var isActive: Bool
-    @Binding var comment: String
-    let onUpdate: () -> Void
-    
-    var body: some View {
-        Section(header: Text(title)) {
-            Toggle("Aktiviert", isOn: $isActive)
-                .onChange(of: isActive) { _ in onUpdate() }
-            
-            if isActive {
-                TextEditor(text: $comment)
-                    .frame(minHeight: 80)
-                    .onChange(of: comment) { _ in onUpdate() }
-            }
-        }
-    }
-}
 
 struct ExportView: View {
     @EnvironmentObject var viewModel: AppViewModel
@@ -1262,7 +1113,6 @@ struct ExportView: View {
                 Button(action: {
                     isExporting = true
                     
-                    // Simulate export process (in a real app, this would be the actual export)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                         exportURL = viewModel.exportData(exportType: exportType)
                         isExporting = false
@@ -1356,19 +1206,6 @@ struct SettingsView: View {
                 }
             }
 
-            Section {
-                Button(action: {
-                    showResetAlert = true
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.counterclockwise")
-                            .foregroundColor(.red)
-                        Text("Aktives Profil zurücksetzen")
-                            .foregroundColor(.red)
-                    }
-                }
-            }
-
             Section(header: Text("App-Informationen"), footer: Text("© 2025 K&S")) {
                 HStack {
                     Text("Version")
@@ -1379,16 +1216,6 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Einstellungen")
-        .alert(isPresented: $showResetAlert) {
-            Alert(
-                title: Text("Profil zurücksetzen"),
-                message: Text("Möchten Sie das aktive Profil wirklich zurücksetzen? Alle Daten werden gelöscht."),
-                primaryButton: .destructive(Text("Zurücksetzen")) {
-                    viewModel.resetActiveProfile()
-                },
-                secondaryButton: .cancel()
-            )
-        }
         .sheet(isPresented: $showCreateProfile) {
             CreateProfileView()
                 .environmentObject(viewModel)
@@ -1519,5 +1346,4 @@ struct ImagePicker: UIViewControllerRepresentable {
 
 #Preview {
     ContentView()
-        .environmentObject(AppViewModel())
 }

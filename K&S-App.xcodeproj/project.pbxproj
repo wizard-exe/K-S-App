@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4A95A0CF2DA1B1CD008D0DCC /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 4A95A0CE2DA1B1CD008D0DCC /* ZIPFoundation */; };
+		4A95A0D22DA1B336008D0DCC /* DocX in Frameworks */ = {isa = PBXBuildFile; productRef = 4A95A0D12DA1B336008D0DCC /* DocX */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		4A81CCA22D9D685A005BCDF2 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4A95A0D22DA1B336008D0DCC /* DocX in Frameworks */,
+				4A95A0CF2DA1B1CD008D0DCC /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = "K&S-App";
 			packageProductDependencies = (
+				4A95A0CE2DA1B1CD008D0DCC /* ZIPFoundation */,
+				4A95A0D12DA1B336008D0DCC /* DocX */,
 			);
 			productName = "K&S-App";
 			productReference = 4A81CC942D9D6859005BCDF2 /* K&S-App.app */;
@@ -195,6 +204,10 @@
 			);
 			mainGroup = 4A81CC8B2D9D6859005BCDF2;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4A95A0CD2DA1B162008D0DCC /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				4A95A0D02DA1B336008D0DCC /* XCRemoteSwiftPackageReference "DocX" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4A81CC952D9D6859005BCDF2 /* Products */;
 			projectDirPath = "";
@@ -401,6 +414,7 @@
 				DEVELOPMENT_TEAM = 2YAD6CM8CX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "K-S-App-Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -430,6 +444,7 @@
 				DEVELOPMENT_TEAM = 2YAD6CM8CX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "K-S-App-Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -560,6 +575,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4A95A0CD2DA1B162008D0DCC /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
+		4A95A0D02DA1B336008D0DCC /* XCRemoteSwiftPackageReference "DocX" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/shinjukunian/DocX.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.9;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4A95A0CE2DA1B1CD008D0DCC /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4A95A0CD2DA1B162008D0DCC /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		4A95A0D12DA1B336008D0DCC /* DocX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4A95A0D02DA1B336008D0DCC /* XCRemoteSwiftPackageReference "DocX" */;
+			productName = DocX;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4A81CC8C2D9D6859005BCDF2 /* Project object */;
 }

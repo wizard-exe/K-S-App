@@ -14,19 +14,19 @@ enum AppMode: String, Codable {
     case pv = "PV"
 }
 
-struct ChecklistCategory: Identifiable, Codable {
+struct ChecklistCategory: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var subcategories: [ChecklistSubcategory]
 }
 
-struct ChecklistSubcategory: Identifiable, Codable {
+struct ChecklistSubcategory: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var items: [ChecklistItem]
 }
 
-struct ChecklistItem: Identifiable, Codable {
+struct ChecklistItem: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var isCompleted: Bool = false
@@ -42,19 +42,24 @@ struct LOPItem: Identifiable, Codable {
     var images: [String] = []
 }
 
-struct Platform: Identifiable, Codable {
+struct Platform: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
-    var image: String?
-    var bolts: FeatureStatus = FeatureStatus()
-    var lighting: FeatureStatus = FeatureStatus()
-    var cableFastening: FeatureStatus = FeatureStatus()
-    var markings: FeatureStatus = FeatureStatus()
-    var safetyMeasures: FeatureStatus = FeatureStatus()
-    var obstacleBeacon: FeatureStatus = FeatureStatus()
+    var image: String? = nil
+    var items: [ChecklistItem] = Platform.defaultChecklistItems()
+
+    static func defaultChecklistItems() -> [ChecklistItem] {
+        return [
+            ChecklistItem(name: "Bolzen"),
+            ChecklistItem(name: "Beleuchtung"),
+            ChecklistItem(name: "Kabelbefestigung"),
+            ChecklistItem(name: "Markierungen"),
+            ChecklistItem(name: "Sicherheitsmaßnahmen"),
+            ChecklistItem(name: "Hindernisbefeuerung"),
+            ChecklistItem(name: "Turm Sektionsnummer")
+        ]
+    }
 }
 
-struct FeatureStatus: Codable {
-    var isActive: Bool = false
-    var comment: String = ""
-}
+
+

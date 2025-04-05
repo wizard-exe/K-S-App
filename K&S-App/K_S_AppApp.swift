@@ -1,9 +1,9 @@
-
 import SwiftUI
 
 @main
 struct K_S_AppApp: App {
-    
+    @StateObject private var viewModel = AppViewModel()
+
     init() {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
@@ -26,10 +26,10 @@ struct K_S_AppApp: App {
         UINavigationBar.appearance().tintColor = .white
     }
 
-    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(viewModel)
                 .preferredColorScheme(.light)
         }
     }
