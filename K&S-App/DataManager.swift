@@ -6,6 +6,7 @@ import Foundation
 
 class DataManager {
     private let profilesKey = "profiles"
+    private let correctionEndpoint = URL(string: "https://k-s-app-backend.onrender.com/korrigiere")!
 
     func loadProfiles() -> [Profile] {
         if let data = UserDefaults.standard.data(forKey: profilesKey) {
@@ -29,21 +30,41 @@ class DataManager {
     }
 
     func exportData(profile: Profile, exportType: ExportType) -> URL? {
+        let semaphore = DispatchSemaphore(value: 0)
+        var finalURL: URL?
+
+        Task {
+            finalURL = await exportDataAsync(profile: profile, exportType: exportType)
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return finalURL
+    }
+
+    private func exportDataAsync(profile: Profile, exportType: ExportType) async -> URL? {
         let fileManager = FileManager.default
         let exportFolderName = exportType == .checklist ? "Checklist" : "LOP"
         let tempDirectory = fileManager.temporaryDirectory.appendingPathComponent(exportFolderName)
 
         do {
+            if fileManager.fileExists(atPath: tempDirectory.path) {
+                try fileManager.removeItem(at: tempDirectory)
+            }
             try fileManager.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
 
             switch exportType {
             case .checklist:
-                try exportChecklistImages(profile: profile, to: tempDirectory)
+                try exportChecklistImages(profile: profile, to: tempDirectory.appendingPathComponent("Images"))
             case .lop:
-                try exportLOPImagesAndCSV(profile: profile, to: tempDirectory)
+                try exportLOPImages(profile: profile, to: tempDirectory.appendingPathComponent("Images"))
+                try await exportLOPCSV(profile: profile, to: tempDirectory)
             }
 
             let zipURL = fileManager.temporaryDirectory.appendingPathComponent("\(exportFolderName).zip")
+            if fileManager.fileExists(atPath: zipURL.path) {
+                try fileManager.removeItem(at: zipURL)
+            }
             try fileManager.zipItem(at: tempDirectory, to: zipURL)
             return zipURL
 
@@ -54,13 +75,13 @@ class DataManager {
     }
 
     private func exportChecklistImages(profile: Profile, to directory: URL) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var itemCounter = 1
 
         for category in profile.checklists {
             for subcategory in category.subcategories {
                 for item in subcategory.items {
                     guard !item.images.isEmpty else { continue }
-
                     let sanitizedItemName = sanitize(item.name)
 
                     for (index, path) in item.images.enumerated() {
@@ -80,8 +101,8 @@ class DataManager {
         }
     }
 
-    private func exportLOPImagesAndCSV(profile: Profile, to directory: URL) throws {
-        var csvLines: [String] = ["Nummer,Kommentar"]
+    private func exportLOPImages(profile: Profile, to directory: URL) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         for (lopIndex, item) in profile.lopItems.enumerated() {
             for (imageIndex, path) in item.images.enumerated() {
@@ -94,25 +115,57 @@ class DataManager {
                     print("Skipped missing file: \(path)")
                 }
             }
+        }
+    }
 
-            let line = "\(lopIndex + 1),\(item.comment.replacingOccurrences(of: ",", with: ";"))"
-            csvLines.append(line)
+    private func exportLOPCSV(profile: Profile, to directory: URL) async throws {
+        let csvURL = directory.appendingPathComponent("LOP.csv")
+        var csvText = "Nr.,Kommentar\n"
+
+        for (index, item) in profile.lopItems.enumerated() {
+            let corrected = await correctComment(item.comment)
+            let line = "\(index + 1),\"\(corrected.replacingOccurrences(of: "\"", with: "\"\""))\""
+            csvText.append("\(line)\n")
         }
 
-        let csvContent = csvLines.joined(separator: "\n")
-        let csvURL = directory.appendingPathComponent("LOP_Kommentare.csv")
-        try csvContent.write(to: csvURL, atomically: true, encoding: .utf8)
+        try csvText.write(to: csvURL, atomically: true, encoding: .utf8)
+    }
+
+    private func correctComment(_ text: String) async -> String {
+        var request = URLRequest(url: correctionEndpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: String] = ["text": text]
+        request.httpBody = try? JSONEncoder().encode(body)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                if let decoded = try? JSONDecoder().decode([String: String].self, from: data),
+                   let corrected = decoded["technisch"] {
+                    return corrected
+                }
+            } else if let httpResponse = response as? HTTPURLResponse {
+                print("Correction server error: \(httpResponse.statusCode)")
+            }
+        } catch {
+            print("Correction request failed: \(error)")
+        }
+
+        return text
     }
 
     private func sanitize(_ string: String) -> String {
         return string.replacingOccurrences(of: "/", with: "_")
-                       .replacingOccurrences(of: "\\", with: "_")
-                       .replacingOccurrences(of: ":", with: "_")
-                       .replacingOccurrences(of: "*", with: "_")
-                       .replacingOccurrences(of: "?", with: "_")
-                       .replacingOccurrences(of: "\"", with: "_")
-                       .replacingOccurrences(of: "<", with: "_")
-                       .replacingOccurrences(of: ">", with: "_")
-                       .replacingOccurrences(of: "|", with: "_")
+            .replacingOccurrences(of: "\\", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+            .replacingOccurrences(of: "*", with: "_")
+            .replacingOccurrences(of: "?", with: "_")
+            .replacingOccurrences(of: "\"", with: "_")
+            .replacingOccurrences(of: "<", with: "_")
+            .replacingOccurrences(of: ">", with: "_")
+            .replacingOccurrences(of: "|", with: "_")
     }
 }
