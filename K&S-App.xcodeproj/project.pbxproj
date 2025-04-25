@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		4A95A0CF2DA1B1CD008D0DCC /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 4A95A0CE2DA1B1CD008D0DCC /* ZIPFoundation */; };
-		4A95A0D22DA1B336008D0DCC /* DocX in Frameworks */ = {isa = PBXBuildFile; productRef = 4A95A0D12DA1B336008D0DCC /* DocX */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,7 +56,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4A95A0D22DA1B336008D0DCC /* DocX in Frameworks */,
 				4A95A0CF2DA1B1CD008D0DCC /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -120,7 +118,6 @@
 			name = "K&S-App";
 			packageProductDependencies = (
 				4A95A0CE2DA1B1CD008D0DCC /* ZIPFoundation */,
-				4A95A0D12DA1B336008D0DCC /* DocX */,
 			);
 			productName = "K&S-App";
 			productReference = 4A81CC942D9D6859005BCDF2 /* K&S-App.app */;
@@ -206,7 +203,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				4A95A0CD2DA1B162008D0DCC /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
-				4A95A0D02DA1B336008D0DCC /* XCRemoteSwiftPackageReference "DocX" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4A81CC952D9D6859005BCDF2 /* Products */;
@@ -415,17 +411,20 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "K-S-App-Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um Fotos zu Checklistenpunkten hinzuzufügen.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Zum Speichern von Fotos zu Checklistenpunkten in Ihrer Mediathek.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "mk.K-S-App";
+				PRODUCT_BUNDLE_IDENTIFIER = "mk.K-S";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -445,17 +444,20 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "K-S-App-Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Die Kamera wird benötigt, um Fotos zu Checklistenpunkten hinzuzufügen.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Zum Speichern von Fotos zu Checklistenpunkten in Ihrer Mediathek.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "mk.K-S-App";
+				PRODUCT_BUNDLE_IDENTIFIER = "mk.K-S";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -585,14 +587,6 @@
 				minimumVersion = 0.9.19;
 			};
 		};
-		4A95A0D02DA1B336008D0DCC /* XCRemoteSwiftPackageReference "DocX" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/shinjukunian/DocX.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.8.9;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -600,11 +594,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4A95A0CD2DA1B162008D0DCC /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
-		};
-		4A95A0D12DA1B336008D0DCC /* DocX */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4A95A0D02DA1B336008D0DCC /* XCRemoteSwiftPackageReference "DocX" */;
-			productName = DocX;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

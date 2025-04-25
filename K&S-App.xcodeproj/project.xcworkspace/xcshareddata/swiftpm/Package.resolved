@@ -1,24 +1,6 @@
 {
-  "originHash" : "204e76034f3cde442a80f3b799a4e9fb77c706321897487be26fce28d45d5b3f",
+  "originHash" : "d0d4edfdf2bf3cd05b3ba2dec0af1a9c271c93f944cbba8677cc647f74a6b323",
   "pins" : [
-    {
-      "identity" : "aexml",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/shinjukunian/AEXML.git",
-      "state" : {
-        "revision" : "fdc982394db2b46a829cac2271b01d3bc43b9415",
-        "version" : "4.6.3"
-      }
-    },
-    {
-      "identity" : "docx",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/shinjukunian/DocX.git",
-      "state" : {
-        "revision" : "b4ae21fe4e1e46c9a8dff2964348d1200398e58a",
-        "version" : "0.8.9"
-      }
-    },
     {
       "identity" : "zipfoundation",
       "kind" : "remoteSourceControl",

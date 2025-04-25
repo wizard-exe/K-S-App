@@ -6,9 +6,5 @@
 	<array>
 		<dict/>
 	</array>
-    <key>NSCameraUsageDescription</key>
-    <string>Die Kamera wird benötigt, um Fotos zu Checklistenpunkten hinzuzufügen.</string>
-    <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Zum Speichern von Fotos zu Checklistenpunkten in Ihrer Mediathek.</string>
 </dict>
 </plist>
