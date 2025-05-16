@@ -1,20 +1,27 @@
 import SwiftUI
 
+// Die ContentView ist der Einstiegspunkt der App und steuert die Hauptnavigation
 struct ContentView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showMenu = false
 
     var body: some View {
         ZStack {
+            // Hauptnavigation für die App
             NavigationView {
                 Group {
+                    // Zeige Willkommensbildschirm, falls keine Profile vorhanden sind
                     if viewModel.profiles.isEmpty {
                         WelcomeView()
                             .environmentObject(viewModel)
-                    } else if let profile = viewModel.activeProfile {
+                    }
+                    // Zeige MainView für das aktuell aktive Profil
+                    else if let profile = viewModel.activeProfile {
                         MainView(profile: profile)
                             .environmentObject(viewModel)
-                    } else {
+                    }
+                    // Fallback, falls kein Profil aktiv ist
+                    else {
                         WelcomeView()
                             .environmentObject(viewModel)
                     }
@@ -22,6 +29,7 @@ struct ContentView: View {
                 .navigationBarTitle(viewModel.activeProfile?.name ?? "", displayMode: .inline)
                 .navigationBarItems(
                     leading: Button(action: {
+                        // Öffnet/Schließt das Seitenmenü
                         withAnimation {
                             showMenu.toggle()
                         }
@@ -30,6 +38,7 @@ struct ContentView: View {
                             .foregroundColor(Color(.white))
                     },
                     trailing: HStack {
+                        // Zahnrad für Einstellungen, nur wenn ein Profil aktiv ist
                         if viewModel.activeProfile != nil {
                             NavigationLink(destination: SettingsView().environmentObject(viewModel)) {
                                 Image(systemName: "gear")
@@ -41,6 +50,7 @@ struct ContentView: View {
             }
             .zIndex(0)
 
+            // Überlagertes Sidebar-Menü
             if showMenu {
                 SidebarView(isShowing: $showMenu)
                     .environmentObject(viewModel)
@@ -51,6 +61,7 @@ struct ContentView: View {
     }
 }
 
+// Zeigt den Startbildschirm, wenn noch kein Profil existiert
 struct WelcomeView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showCreateProfile = false
@@ -59,6 +70,7 @@ struct WelcomeView: View {
         VStack(spacing: 20) {
             Spacer()
 
+            // App-Logo
             Image("Logo")
                 .resizable()
                 .scaledToFit()
@@ -66,6 +78,7 @@ struct WelcomeView: View {
                 .frame(width: 200, height: 200)
                 .background(Color.white)
 
+            // Einleitungstext
             Text("Erstellen Sie ein Profil, um mit der technischen Dokumentation zu beginnen.")
                 .font(.body)
                 .foregroundColor(.white)
@@ -74,6 +87,7 @@ struct WelcomeView: View {
 
             Spacer()
 
+            // Button zum Erstellen eines neuen Profils
             Button(action: {
                 showCreateProfile = true
             }) {
@@ -90,6 +104,7 @@ struct WelcomeView: View {
         .padding()
         .background(Color("KSBlue"))
         .ignoresSafeArea()
+        // Sheet für das Erstellen eines neuen Profils
         .sheet(isPresented: $showCreateProfile) {
             CreateProfileView()
                 .environmentObject(viewModel)
@@ -97,6 +112,7 @@ struct WelcomeView: View {
     }
 }
 
+// View zum Erstellen eines neuen Profils, inklusive Modusauswahl
 struct CreateProfileView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Environment(\.presentationMode) var presentationMode
@@ -107,9 +123,12 @@ struct CreateProfileView: View {
     var body: some View {
         NavigationView {
             Form {
+                // Bereich für Profilinformationen
                 Section(header: Text("Profil-Informationen")) {
+                    // Eingabe für Profilnamen
                     TextField("Profilname", text: $profileName)
 
+                    // Auswahl des Modus (Windenergie oder Photovoltaik)
                     Picker("Modus", selection: $selectedMode) {
                         Text("Windenergieanlage").tag(AppMode.wea)
                         Text("Photovoltaik").tag(AppMode.pv)
@@ -119,9 +138,11 @@ struct CreateProfileView: View {
             }
             .navigationBarTitle("Neues Profil", displayMode: .inline)
             .navigationBarItems(
+                // Button zum Abbrechen
                 leading: Button("Abbrechen") {
                     presentationMode.wrappedValue.dismiss()
                 },
+                // Button zum Erstellen, nur aktiv, wenn ein Name eingegeben wurde
                 trailing: Button("Erstellen") {
                     viewModel.createProfile(name: profileName, mode: selectedMode)
                     presentationMode.wrappedValue.dismiss()
@@ -133,6 +154,7 @@ struct CreateProfileView: View {
     }
 }
 
+// Seitenleiste für die Profilverwaltung und Navigation
 struct SidebarView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Binding var isShowing: Bool
@@ -142,6 +164,7 @@ struct SidebarView: View {
 
     var body: some View {
         ZStack {
+            // Dunkler Overlay-Hintergrund, schließt das Menü bei Klick
             Color.black.opacity(0.5)
                 .onTapGesture {
                     withAnimation {
@@ -153,6 +176,7 @@ struct SidebarView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         Spacer()
+                        // Schließen-Button für die Sidebar
                         Button(action: {
                             withAnimation {
                                 isShowing = false
@@ -167,6 +191,7 @@ struct SidebarView: View {
 
                     Divider()
 
+                    // Liste aller vorhandenen Profile
                     List {
                         ForEach(viewModel.profiles) { profile in
                             Button(action: {
@@ -181,16 +206,19 @@ struct SidebarView: View {
 
                                     Spacer()
 
+                                    // Zeigt den Profilmodus (WEA/PV)
                                     Text(profile.mode.rawValue)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
 
+                                    // Häkchen für das aktuell aktive Profil
                                     if viewModel.activeProfile?.id == profile.id {
                                         Image(systemName: "checkmark")
                                             .foregroundColor(Color("KSBlue"))
                                     }
                                 }
                             }
+                            // Swipe-to-Delete für jedes Profil
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
                                     profileToDelete = profile
@@ -201,6 +229,7 @@ struct SidebarView: View {
                             }
                         }
 
+                        // Button für das Anlegen eines neuen Profils
                         Button(action: {
                             showCreateProfile = true
                         }) {
@@ -242,13 +271,16 @@ struct SidebarView: View {
     }
 }
 
+// Haupt-Inhaltsansicht für ein Profil: Steuert die Tabs (Checkliste, LOP, ggf. Plattformen, Export)
 struct MainView: View {
     @EnvironmentObject var viewModel: AppViewModel
     let profile: Profile
     @State private var selectedTab = 0
 
     var body: some View {
+        // TabView für die vier Hauptbereiche der App
         TabView(selection: $selectedTab) {
+            // Tab: Checkliste
             ChecklistView()
                 .tabItem {
                     Image(systemName: "checklist")
@@ -256,6 +288,7 @@ struct MainView: View {
                 }
                 .tag(0)
 
+            // Tab: LOP (List of Open Points)
             LOPView()
                 .tabItem {
                     Image(systemName: "exclamationmark.circle")
@@ -263,8 +296,9 @@ struct MainView: View {
                 }
                 .tag(1)
 
+            // Tab: Plattformen (nur für WEA-Profile)
             if profile.mode == .wea {
-                PlatformsView()
+                PlattformenView()
                     .tabItem {
                         Image(systemName: "square.stack.3d.up")
                         Text("Plattformen")
@@ -272,6 +306,7 @@ struct MainView: View {
                     .tag(2)
             }
 
+            // Tab: Export-Funktion
             ExportView()
                 .tabItem {
                     Image(systemName: "square.and.arrow.up")
@@ -283,13 +318,16 @@ struct MainView: View {
     }
 }
 
+// Zeigt alle Checklisten-Kategorien eines Profils an (Hauptübersicht)
 struct ChecklistView: View {
     @EnvironmentObject var viewModel: AppViewModel
 
     var body: some View {
         List {
+            // Für jede Kategorie eine Section
             ForEach(viewModel.filteredChecklists) { category in
                 Section(header: Text(category.name).font(.headline)) {
+                    // Unterkategorien als Navigationslinks anzeigen
                     ForEach(category.subcategories) { subcategory in
                         NavigationLink(destination: ChecklistSubcategoryItemListView(category: category, subcategory: subcategory)) {
                             Text(subcategory.name)
@@ -302,10 +340,12 @@ struct ChecklistView: View {
     }
 }
 
+// Erweiterung, damit Int in ForEach verwendet werden kann
 extension Int: Identifiable {
     public var id: Int { self }
 }
 
+// Zeigt alle Items einer Unterkategorie an, inkl. Status und Bilder
 struct ChecklistSubcategoryItemListView: View {
     @EnvironmentObject var viewModel: AppViewModel
     let category: ChecklistCategory
@@ -319,15 +359,18 @@ struct ChecklistSubcategoryItemListView: View {
 
     var body: some View {
         List {
+            // Zugriff auf aktuelle Listen-Position im globalen Model
             if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
                let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
                let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }) {
 
+                // Alle Items der Subkategorie als eigene Zeilen
                 ForEach(viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items.indices, id: \.self) { index in
                     let binding = $viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items[index]
                     let item = binding.wrappedValue
 
                     HStack(spacing: 12) {
+                        // Button zum Abhaken des Items
                         Button(action: {
                             binding.isCompleted.wrappedValue.toggle()
                             viewModel.saveProfiles()
@@ -339,13 +382,16 @@ struct ChecklistSubcategoryItemListView: View {
                         }
                         .buttonStyle(BorderlessButtonStyle())
 
+                        // Name des Items
                         Text(item.name)
                             .fixedSize(horizontal: false, vertical: true)
                             .multilineTextAlignment(.leading)
 
                         Spacer()
 
-                        HStack() {
+                        // Schnelle Aktionen: Kamera, Detailansicht
+                        HStack {
+                            // Foto aufnehmen und zuweisen
                             Button(action: {
                                 sourceType = .camera
                                 selectedItemIndex = index
@@ -355,13 +401,15 @@ struct ChecklistSubcategoryItemListView: View {
                             }
                             .buttonStyle(BorderlessButtonStyle())
 
+                            // Navigiere zu Detailansicht des Items
                             Button(action: {
                                 navigationTargetIndex = index
                             }) {
                                 Image(systemName: "info.circle")
                             }
                             .buttonStyle(BorderlessButtonStyle())
-                            
+
+                            // NavigationLink für Detail-Ansicht (versteckt)
                             ZStack {
                                 NavigationLink(
                                     destination: detailView(for: index),
@@ -375,6 +423,7 @@ struct ChecklistSubcategoryItemListView: View {
                         }
                     }
                     .contentShape(Rectangle())
+                    // Tap auf Zeile öffnet auch Kamera (außer auf Button-Fläche)
                     .onTapGesture {
                         if !isTapInsideButtonArea() {
                             sourceType = .camera
@@ -386,9 +435,11 @@ struct ChecklistSubcategoryItemListView: View {
             }
         }
         .navigationTitle(subcategory.name)
+        // Zeigt ImagePicker als Vollbild, wenn benötigt
         .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
+                    // Nach der Bildauswahl: Bild abspeichern und dem Item hinzufügen
                     if let index = selectedItemIndex,
                        let image = selectedImage,
                        let path = viewModel.saveImage(image),
@@ -404,6 +455,7 @@ struct ChecklistSubcategoryItemListView: View {
         }
     }
 
+    // Liefert die Detail-Ansicht eines Items zurück
     private func detailView(for index: Int) -> some View {
         if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
            let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
@@ -425,17 +477,13 @@ struct ChecklistSubcategoryItemListView: View {
         return AnyView(EmptyView())
     }
 
+    // Optional: Verhindert versehentliche Mehrfachauslösung beim Tap (hier immer false)
     func isTapInsideButtonArea() -> Bool {
         false
     }
 }
 
-private extension UIViewController {
-    @objc func dismissSelf() {
-        dismiss(animated: true, completion: nil)
-    }
-}
-
+// Zeigt die Detailansicht eines einzelnen Checklist-Items inkl. Bilder und Kommentar
 struct ChecklistItemDetailView: View {
     @EnvironmentObject var viewModel: AppViewModel
     let category: ChecklistCategory
@@ -452,16 +500,20 @@ struct ChecklistItemDetailView: View {
 
     var body: some View {
         Form {
+            // Kommentarbereich für das Item
             Section(header: Text("Kommentar")) {
                 TextEditor(text: $item.comment)
                     .frame(minHeight: 100)
                     .onChange(of: item.comment) { _ in
+                        // Speichert Kommentareingabe sofort
                         viewModel.saveProfiles()
                     }
             }
 
+            // Bilderbereich mit Kamera/Galerie und Bildübersicht
             Section(header: Text("Bilder")) {
                 HStack {
+                    // Button für Kamera
                     Button(action: {
                         sourceType = .camera
                         showImagePicker = true
@@ -475,6 +527,7 @@ struct ChecklistItemDetailView: View {
 
                     Spacer()
 
+                    // Button für Galerie
                     Button(action: {
                         sourceType = .photoLibrary
                         showImagePicker = true
@@ -487,6 +540,7 @@ struct ChecklistItemDetailView: View {
                     .buttonStyle(BorderlessButtonStyle())
                 }
 
+                // Wenn Bilder vorhanden: als Scrollbar anzeigen, Löschen & Vollbild möglich
                 if !item.images.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
@@ -501,10 +555,12 @@ struct ChecklistItemDetailView: View {
                                             .cornerRadius(8)
                                             .clipped()
                                             .onTapGesture {
+                                                // Bild in Vollbild öffnen
                                                 fullScreenImagePath = path
                                                 showingFullScreenImage = true
                                             }
 
+                                        // Bild löschen-Button
                                         Button(action: {
                                             withAnimation {
                                                 viewModel.deleteImage(at: path)
@@ -528,6 +584,7 @@ struct ChecklistItemDetailView: View {
                 }
             }
 
+            // Button, um das Item zur LOP-Liste hinzuzufügen
             Section {
                 Button(action: {
                     viewModel.addToLOP(item: item)
@@ -538,10 +595,12 @@ struct ChecklistItemDetailView: View {
             }
         }
         .navigationTitle("Details")
+        // Vollbild-ImagePicker für Fotos
         .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
                     DispatchQueue.main.async {
+                        // Nach der Bildauswahl: zum Item hinzufügen und speichern
                         if let image = selectedImage,
                            let path = viewModel.saveImage(image) {
                             item.images.append(path)
@@ -551,6 +610,7 @@ struct ChecklistItemDetailView: View {
                     }
                 }
         }
+        // Vollbildanzeige für Bildansicht
         .fullScreenCover(isPresented: $showingFullScreenImage) {
             if let path = fullScreenImagePath,
                let uiImage = UIImage(contentsOfFile: path) {
@@ -559,7 +619,7 @@ struct ChecklistItemDetailView: View {
         }
     }
 }
-
+// LOPView zeigt die Übersicht und Verwaltung aller LOP-Einträge eines Profils
 struct LOPView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showAddLOP = false
@@ -568,13 +628,16 @@ struct LOPView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            // Liste aller LOP-Einträge mit Swipe-to-Delete und Navigation zu Details
             List {
                 ForEach(viewModel.activeProfile?.lopItems ?? []) { lopItem in
                     NavigationLink(destination: LOPItemDetailView(lopItem: lopItem)) {
                         VStack(alignment: .leading) {
+                            // Titel (z. B. LOP-1, LOP-2, ...)
                             Text(lopItem.title)
                                 .font(.headline)
 
+                            // Optionaler Kommentar, Vorschau
                             if !lopItem.comment.isEmpty {
                                 Text(lopItem.comment)
                                     .font(.subheadline)
@@ -582,6 +645,7 @@ struct LOPView: View {
                             }
                         }
                     }
+                    // Swipe-Action zum Löschen eines Eintrags
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             lopItemToDelete = lopItem
@@ -596,6 +660,7 @@ struct LOPView: View {
             .navigationTitle("LOP")
             .navigationBarBackButtonHidden(true)
 
+            // Button zum Hinzufügen eines neuen LOP-Eintrags
             Button(action: {
                 showAddLOP = true
             }) {
@@ -611,10 +676,12 @@ struct LOPView: View {
                 .padding()
             }
         }
+        // Sheet für das Hinzufügen eines neuen LOP-Eintrags
         .sheet(isPresented: $showAddLOP) {
             AddLOPItemView()
                 .environmentObject(viewModel)
         }
+        // Bestätigungsdialog zum Löschen eines LOP-Eintrags
         .alert(isPresented: $showDeleteConfirmation) {
             Alert(
                 title: Text("LOP-Eintrag löschen"),
@@ -629,21 +696,25 @@ struct LOPView: View {
         }
     }
 
+    // Löscht den gewählten LOP-Eintrag samt Bilder aus dem Profil
     private func deleteLOPItem(_ item: LOPItem) {
         guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
               let itemIndex = viewModel.profiles[profileIndex].lopItems.firstIndex(where: { $0.id == item.id }) else {
             return
         }
 
+        // Zugehörige Bilder löschen
         for imagePath in viewModel.profiles[profileIndex].lopItems[itemIndex].images {
             viewModel.deleteImage(at: imagePath)
         }
 
+        // LOP-Eintrag aus der Liste entfernen und speichern
         viewModel.profiles[profileIndex].lopItems.remove(at: itemIndex)
         viewModel.saveProfiles()
     }
 }
 
+// AddLOPItemView ermöglicht das Hinzufügen eines neuen LOP-Eintrags mit Kommentar und Bildern
 struct AddLOPItemView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Environment(\.presentationMode) var presentationMode
@@ -657,13 +728,16 @@ struct AddLOPItemView: View {
     var body: some View {
         NavigationView {
             Form {
+                // Textfeld für Kommentar
                 Section(header: Text("Kommentar")) {
                     TextEditor(text: $comment)
                         .frame(minHeight: 100)
                 }
 
+                // Bereich für Bilder (Kamera/Galerie), Bildervorschau und Löschen
                 Section(header: Text("Bilder")) {
                     HStack {
+                        // Foto aufnehmen
                         Button(action: {
                             sourceType = .camera
                             showImagePicker = true
@@ -673,9 +747,8 @@ struct AddLOPItemView: View {
                                 Text("Foto aufnehmen")
                             }
                         }
-
                         Spacer()
-
+                        // Aus Galerie wählen
                         Button(action: {
                             sourceType = .photoLibrary
                             showImagePicker = true
@@ -687,6 +760,7 @@ struct AddLOPItemView: View {
                         }
                     }
 
+                    // Bildvorschau mit Option zum Löschen per Kontextmenü
                     if !imagePaths.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack {
@@ -717,6 +791,7 @@ struct AddLOPItemView: View {
             .navigationTitle("Neuer LOP-Eintrag")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
+                // Abbrechen: Löscht aufgenommene Bilder und schließt das Sheet
                 leading: Button("Abbrechen") {
                     for path in imagePaths {
                         viewModel.deleteImage(at: path)
@@ -724,14 +799,16 @@ struct AddLOPItemView: View {
                     presentationMode.wrappedValue.dismiss()
                 }
                 .foregroundColor(.white),
-
+                // Speichern: LOP-Eintrag hinzufügen
                 trailing: Button("Speichern") {
                     guard let profile = viewModel.activeProfile,
                           let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
 
+                    // Erzeugt neuen LOP-Eintrag mit eindeutiger Nummer
                     let lopNumber = viewModel.profiles[profileIndex].lopItems.count + 1
                     let lopItem = LOPItem(title: "LOP-\(lopNumber)", comment: comment, images: imagePaths)
 
+                    // Eintrag zum Profil hinzufügen und speichern
                     presentationMode.wrappedValue.dismiss()
                     DispatchQueue.main.async {
                         viewModel.profiles[profileIndex].lopItems.append(lopItem)
@@ -744,9 +821,11 @@ struct AddLOPItemView: View {
             )
         }
         .navigationBarBackButtonHidden(true)
+        // Sheet für ImagePicker (Kamera oder Galerie)
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
+                    // Nach der Bildauswahl: Zum Eintrag hinzufügen
                     if let image = selectedImage, let path = viewModel.saveImage(image) {
                         imagePaths.append(path)
                         selectedImage = nil
@@ -756,6 +835,7 @@ struct AddLOPItemView: View {
     }
 }
 
+// LOPItemDetailView zeigt und bearbeitet einen einzelnen LOP-Eintrag (Kommentar + Bilder)
 struct LOPItemDetailView: View {
     @EnvironmentObject var viewModel: AppViewModel
     let lopItem: LOPItem
@@ -768,6 +848,7 @@ struct LOPItemDetailView: View {
     @State private var comment: String
     @State private var imagePaths: [String]
     
+    // Initialisiert die State-Werte mit den aktuellen Daten des Eintrags
     init(lopItem: LOPItem) {
         self.lopItem = lopItem
         _comment = State(initialValue: lopItem.comment)
@@ -776,14 +857,17 @@ struct LOPItemDetailView: View {
     
     var body: some View {
         Form {
+            // Kommentarbereich
             Section(header: Text("Kommentar")) {
                 TextEditor(text: $comment)
                     .frame(minHeight: 100)
                     .onChange(of: comment) { newValue in
+                        // Änderungen sofort im Model speichern
                         updateLOPItem()
                     }
             }
             
+            // Bilderbereich mit Fotoaufnahme, Galerie, Vorschau und Löschen
             Section(header: Text("Bilder")) {
                 HStack {
                     Button(action: {
@@ -795,9 +879,7 @@ struct LOPItemDetailView: View {
                             Text("Foto aufnehmen")
                         }
                     }
-                    
                     Spacer()
-                    
                     Button(action: {
                         sourceType = .photoLibrary
                         showImagePicker = true
@@ -809,6 +891,7 @@ struct LOPItemDetailView: View {
                     }
                 }
                 
+                // Bildvorschau mit Vollbild- und Löschfunktion
                 if !imagePaths.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
@@ -820,11 +903,13 @@ struct LOPItemDetailView: View {
                                         .frame(width: 100, height: 100)
                                         .cornerRadius(8)
                                         .onTapGesture {
+                                            // Bild im Vollbild anzeigen
                                             fullScreenImagePath = path
                                             showingFullScreenImage = true
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
+                                                // Bild löschen und im Model aktualisieren
                                                 viewModel.deleteImage(at: path)
                                                 if let index = imagePaths.firstIndex(of: path) {
                                                     imagePaths.remove(at: index)
@@ -842,6 +927,7 @@ struct LOPItemDetailView: View {
             }
         }
         .navigationTitle(lopItem.title)
+        // Sheet für Kamera oder Galerie
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
@@ -852,6 +938,7 @@ struct LOPItemDetailView: View {
                     }
                 }
         }
+        // Vollbildanzeige für Bilder
         .fullScreenCover(isPresented: $showingFullScreenImage) {
             if let path = fullScreenImagePath, let uiImage = UIImage(contentsOfFile: path) {
                 FullScreenImageView(image: uiImage, isPresented: $showingFullScreenImage)
@@ -859,35 +946,38 @@ struct LOPItemDetailView: View {
         }
     }
     
+    // Speichert Änderungen am LOP-Eintrag (Kommentar und Bilder) zurück ins Model
     private func updateLOPItem() {
         guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
               let lopIndex = viewModel.profiles[profileIndex].lopItems.firstIndex(where: { $0.id == lopItem.id }) else {
             return
         }
-        
         viewModel.profiles[profileIndex].lopItems[lopIndex].comment = comment
         viewModel.profiles[profileIndex].lopItems[lopIndex].images = imagePaths
         viewModel.saveProfiles()
     }
 }
 
-struct PlatformsView: View {
+// PlattformenView: Zeigt die Liste aller Plattformen eines Profils an und erlaubt Hinzufügen und Löschen.
+struct PlattformenView: View {
     @EnvironmentObject var viewModel: AppViewModel
-    @State private var showAddPlatform = false
-    @State private var platformToDelete: Platform?
+    @State private var showAddPlattform = false
+    @State private var plattformToDelete: Plattform?
     @State private var showDeleteConfirmation = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            // Listendarstellung aller Plattformen mit Navigation zur Detailansicht
             List {
-                ForEach(viewModel.activeProfile?.platforms ?? []) { platform in
-                    NavigationLink(destination: PlatformDetailView(platform: platform)) {
-                        Text(platform.name)
+                ForEach(viewModel.activeProfile?.plattformen ?? []) { plattform in
+                    NavigationLink(destination: PlattformDetailView(plattform: plattform)) {
+                        Text(plattform.name)
                             .font(.headline)
                     }
+                    // Swipe-Action zum Löschen einer Plattform
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
-                            platformToDelete = platform
+                            plattformToDelete = plattform
                             showDeleteConfirmation = true
                         } label: {
                             Label("Löschen", systemImage: "trash")
@@ -899,8 +989,9 @@ struct PlatformsView: View {
             .navigationTitle("Plattformen")
             .navigationBarBackButtonHidden(true)
 
+            // Button zum Hinzufügen einer neuen Plattform
             Button(action: {
-                showAddPlatform = true
+                showAddPlattform = true
             }) {
                 HStack {
                     Image(systemName: "plus.circle.fill")
@@ -914,17 +1005,19 @@ struct PlatformsView: View {
                 .padding()
             }
         }
-        .sheet(isPresented: $showAddPlatform) {
-            AddPlatformView()
+        // Sheet für die View zum Hinzufügen einer neuen Plattform
+        .sheet(isPresented: $showAddPlattform) {
+            AddPlattformView()
                 .environmentObject(viewModel)
         }
+        // Alert für Löschbestätigung
         .alert(isPresented: $showDeleteConfirmation) {
             Alert(
                 title: Text("Plattform löschen"),
                 message: Text("Möchtest du die Plattform wirklich löschen?"),
                 primaryButton: .destructive(Text("Löschen")) {
-                    if let platform = platformToDelete {
-                        deletePlatform(platform)
+                    if let plattform = plattformToDelete {
+                        deletePlattform(plattform)
                     }
                 },
                 secondaryButton: .cancel()
@@ -932,22 +1025,26 @@ struct PlatformsView: View {
         }
     }
 
-    private func deletePlatform(_ platform: Platform) {
+    // Entfernt eine Plattform aus dem Profil, inkl. Bild
+    private func deletePlattform(_ plattform: Plattform) {
         guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-              let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) else {
+              let plattformIndex = viewModel.profiles[profileIndex].plattformen.firstIndex(where: { $0.id == plattform.id }) else {
             return
         }
 
-        if let imagePath = viewModel.profiles[profileIndex].platforms[platformIndex].image {
+        // Löscht zugehöriges Bild (falls vorhanden)
+        if let imagePath = viewModel.profiles[profileIndex].plattformen[plattformIndex].image {
             viewModel.deleteImage(at: imagePath)
         }
 
-        viewModel.profiles[profileIndex].platforms.remove(at: platformIndex)
+        // Plattform aus Liste entfernen und speichern
+        viewModel.profiles[profileIndex].plattformen.remove(at: plattformIndex)
         viewModel.saveProfiles()
     }
 }
 
-struct AddPlatformView: View {
+// AddPlattformView: Eingabemaske zum Erstellen einer neuen Plattform mit Namen und optionalem Bild
+struct AddPlattformView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Environment(\.presentationMode) var presentationMode
 
@@ -959,43 +1056,51 @@ struct AddPlatformView: View {
     var body: some View {
         NavigationView {
             Form {
+                // Eingabefeld für den Namen der neuen Plattform
                 Section(header: Text("Name")) {
                     TextField("Plattform-Name", text: $name)
                 }
+                // Hier könnte optional noch ein Bild hinzugefügt werden (ausbaubar)
             }
             .navigationTitle("Neue Plattform")
             .navigationBarItems(
+                // Abbrechen: Schließt die Eingabemaske
                 leading: Button("Abbrechen") {
                     presentationMode.wrappedValue.dismiss()
                 }
                 .foregroundColor(.white),
+                // Speichern: Legt die neue Plattform an
                 trailing: Button("Speichern") {
-                    addPlatform()
+                    addPlattform()
                     presentationMode.wrappedValue.dismiss()
                 }
                 .foregroundColor(.white)
-                .disabled(name.isEmpty)
+                .disabled(name.isEmpty) // Nur aktiv, wenn Name vergeben
             )
         }
     }
 
-    private func addPlatform() {
+    // Fügt die Plattform mit optionalem Bild zum aktuellen Profil hinzu
+    private func addPlattform() {
         guard let profile = viewModel.activeProfile,
               let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
 
+        // Bild speichern (falls vorhanden)
         let imagePath = selectedImage.flatMap { viewModel.saveImage($0) }
 
-        let platform = Platform(name: name, image: imagePath)
-        viewModel.profiles[profileIndex].platforms.append(platform)
+        // Plattform erzeugen und hinzufügen
+        let plattform = Plattform(name: name, image: imagePath)
+        viewModel.profiles[profileIndex].plattformen.append(plattform)
         viewModel.activeProfile = viewModel.profiles[profileIndex]
         viewModel.saveProfiles()
         viewModel.objectWillChange.send()
     }
 }
 
-struct PlatformDetailView: View {
+// PlattformDetailView: Zeigt alle Checklisten-Items einer Plattform mit Status und Bildfunktion
+struct PlattformDetailView: View {
     @EnvironmentObject var viewModel: AppViewModel
-    let platform: Platform
+    let plattform: Plattform
 
     @State private var selectedItemIndex: Int? = nil
     @State private var showImagePicker = false
@@ -1005,14 +1110,17 @@ struct PlatformDetailView: View {
 
     var body: some View {
         List {
+            // Hole aktuelle Plattform-Position im Modell (damit Änderungen auch gespeichert werden)
             if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-               let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) {
+               let plattformIndex = viewModel.profiles[profileIndex].plattformen.firstIndex(where: { $0.id == plattform.id }) {
 
-                ForEach(viewModel.profiles[profileIndex].platforms[platformIndex].items.indices, id: \.self) { index in
-                    let binding = $viewModel.profiles[profileIndex].platforms[platformIndex].items[index]
+                // Für jedes Checklisten-Item eine Zeile
+                ForEach(viewModel.profiles[profileIndex].plattformen[plattformIndex].items.indices, id: \.self) { index in
+                    let binding = $viewModel.profiles[profileIndex].plattformen[plattformIndex].items[index]
                     let item = binding.wrappedValue
 
                     HStack(spacing: 12) {
+                        // Status abhaken/entfernen
                         Button(action: {
                             binding.isCompleted.wrappedValue.toggle()
                             viewModel.saveProfiles()
@@ -1024,12 +1132,15 @@ struct PlatformDetailView: View {
                         }
                         .buttonStyle(BorderlessButtonStyle())
 
+                        // Name des Checklisten-Items
                         Text(item.name)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Spacer()
 
+                        // Buttons: Foto aufnehmen / Detailansicht
                         HStack {
+                            // Kamera für das Item öffnen
                             Button(action: {
                                 sourceType = .camera
                                 selectedItemIndex = index
@@ -1038,6 +1149,7 @@ struct PlatformDetailView: View {
                                 Image(systemName: "camera")
                             }
 
+                            // Info/Details öffnen
                             Button(action: {
                                 navigationTargetIndex = index
                             }) {
@@ -1045,6 +1157,7 @@ struct PlatformDetailView: View {
                             }
                             .buttonStyle(BorderlessButtonStyle())
 
+                            // NavigationLink für Detailansicht (versteckt)
                             NavigationLink(
                                 destination: detailView(for: index),
                                 tag: index,
@@ -1058,16 +1171,18 @@ struct PlatformDetailView: View {
                 }
             }
         }
-        .navigationTitle(platform.name)
+        .navigationTitle(plattform.name)
+        // Vollbild-ImagePicker für das Hinzufügen eines Fotos
         .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
+                    // Nach Auswahl des Fotos dem Item hinzufügen
                     if let index = selectedItemIndex,
                        let image = selectedImage,
                        let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-                       let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) {
+                       let plattformIndex = viewModel.profiles[profileIndex].plattformen.firstIndex(where: { $0.id == plattform.id }) {
 
-                        viewModel.profiles[profileIndex].platforms[platformIndex].items[index].images.append(viewModel.saveImage(image) ?? "")
+                        viewModel.profiles[profileIndex].plattformen[plattformIndex].items[index].images.append(viewModel.saveImage(image) ?? "")
                         viewModel.saveProfiles()
                         selectedImage = nil
                     }
@@ -1075,13 +1190,15 @@ struct PlatformDetailView: View {
         }
     }
 
+    // Zeigt die Detailansicht für ein Plattform-ChecklistItem
     private func detailView(for index: Int) -> some View {
         if let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-           let platformIndex = viewModel.profiles[profileIndex].platforms.firstIndex(where: { $0.id == platform.id }) {
-            let binding = $viewModel.profiles[profileIndex].platforms[platformIndex].items[index]
+           let plattformIndex = viewModel.profiles[profileIndex].plattformen.firstIndex(where: { $0.id == plattform.id }) {
+            let binding = $viewModel.profiles[profileIndex].plattformen[plattformIndex].items[index]
 
+            // Nutzt die gleiche Detail-View wie reguläre Checklistenpunkte
             return AnyView(ChecklistItemDetailView(
-                category: .init(name: platform.name, subcategories: []),
+                category: .init(name: plattform.name, subcategories: []),
                 subcategory: .init(name: "", items: []),
                 itemIndex: index,
                 item: binding
@@ -1091,16 +1208,17 @@ struct PlatformDetailView: View {
     }
 }
 
-
+// Ansicht für den Datenexport (Checklisten & LOP)
 struct ExportView: View {
     @EnvironmentObject var viewModel: AppViewModel
-    @State private var exportType: ExportType = .checklist
-    @State private var showingShareSheet = false
-    @State private var exportURL: URL?
-    @State private var isExporting = false
+    @State private var exportType: ExportType = .checklist         // Auswahl des Export-Typs
+    @State private var showingShareSheet = false                    // Steuert Anzeige des Share-Sheets
+    @State private var exportURL: URL?                              // Pfad zur exportierten Datei
+    @State private var isExporting = false                          // Zeigt Ladezustand während des Exports an
     
     var body: some View {
         Form {
+            // Auswahl, ob Checklisten oder LOP exportiert werden sollen
             Section(header: Text("Export-Typ")) {
                 Picker("Export-Typ", selection: $exportType) {
                     Text("Checklisten").tag(ExportType.checklist)
@@ -1109,14 +1227,17 @@ struct ExportView: View {
                 .pickerStyle(SegmentedPickerStyle())
             }
             
+            // Button zum Starten des Exports
             Section {
                 Button(action: {
-                    isExporting = true
+                    isExporting = true    // Ladeanzeige aktivieren
                     
+                    // Simulierte Wartezeit (könnte bei echten langen Operationen notwendig sein)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                        exportURL = viewModel.exportData(exportType: exportType)
-                        isExporting = false
+                        exportURL = viewModel.exportData(exportType: exportType) // Exportdaten erzeugen
+                        isExporting = false // Ladeanzeige wieder deaktivieren
                         
+                        // Falls Export erfolgreich, zeige Teilen-Dialog an
                         if exportURL != nil {
                             showingShareSheet = true
                         }
@@ -1124,16 +1245,18 @@ struct ExportView: View {
                 }) {
                     HStack {
                         Text("Daten exportieren")
-                        
+                        // Wenn Export läuft, Ladeanzeige
                         if isExporting {
                             Spacer()
                             ProgressView()
                         }
                     }
                 }
+                // Button ist deaktiviert, wenn Export läuft oder kein Profil gewählt ist
                 .disabled(isExporting || viewModel.activeProfile == nil)
             }
             
+            // Hinweistext zum Export
             Section(header: Text("Hinweis")) {
                 Text("Der Export erstellt eine ZIP-Datei mit allen Daten und Bildern, die Sie teilen können.")
                     .font(.caption)
@@ -1141,6 +1264,7 @@ struct ExportView: View {
             }
         }
         .navigationTitle("Export")
+        // Präsentiert das ShareSheet, wenn eine Export-Datei bereitsteht
         .sheet(isPresented: $showingShareSheet) {
             if let url = exportURL {
                 ShareSheet(items: [url])
@@ -1149,17 +1273,21 @@ struct ExportView: View {
     }
 }
 
+// Hilfs-View: System-ShareSheet für Datei-Export
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     
+    // Erstellt einen UIActivityViewController (Teilen/Exportieren)
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
         return controller
     }
     
+    // Keine Updates nötig, Methode bleibt leer
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
+// Ansicht für Einstellungen & Profilverwaltung
 struct SettingsView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @State private var showResetAlert = false
@@ -1168,6 +1296,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            // Profilverwaltung (Auflisten, Löschen, neues Profil)
             Section(header: Text("Profile")) {
                 ForEach(viewModel.profiles) { profile in
                     HStack {
@@ -1178,15 +1307,18 @@ struct SettingsView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
+                        // Setzt aktives Profil
                         viewModel.setActiveProfile(profile)
                     }
                     .swipeActions(edge: .trailing) {
+                        // Löschen-Button für Profile
                         Button(role: .destructive) {
                             profileToDelete = profile
                         } label: {
                             Label("Löschen", systemImage: "trash")
                         }
                     }
+                    // Lösch-Bestätigung als Alert
                     .alert(item: $profileToDelete) { profile in
                         Alert(
                             title: Text("Profil löschen"),
@@ -1198,14 +1330,14 @@ struct SettingsView: View {
                         )
                     }
                 }
-
+                // Button für neues Profil
                 Button(action: {
                     showCreateProfile = true
                 }) {
                     Label("Neues Profil", systemImage: "plus")
                 }
             }
-
+            // App-Info
             Section(header: Text("App-Informationen"), footer: Text("© 2025 K&S")) {
                 HStack {
                     Text("Version")
@@ -1216,6 +1348,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Einstellungen")
+        // Zeigt Eingabemaske für neues Profil
         .sheet(isPresented: $showCreateProfile) {
             CreateProfileView()
                 .environmentObject(viewModel)
@@ -1223,6 +1356,7 @@ struct SettingsView: View {
     }
 }
 
+// Zeigt ein Bild im Vollbild mit Zoom-Geste
 struct FullScreenImageView: View {
     let image: UIImage
     @Binding var isPresented: Bool
@@ -1232,6 +1366,7 @@ struct FullScreenImageView: View {
         ZStack {
             Color.black.edgesIgnoringSafeArea(.all)
             
+            // Das eigentliche Bild mit Zoom-Möglichkeit
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
@@ -1253,6 +1388,7 @@ struct FullScreenImageView: View {
                     }
                 }
         }
+        // Schließen-Button oben rechts
         .overlay(
             Button(action: {
                 isPresented = false
@@ -1269,9 +1405,11 @@ struct FullScreenImageView: View {
     }
 }
 
+// Native UIKit-Suchleiste, eingebunden in SwiftUI
 struct SearchBar: UIViewRepresentable {
     @Binding var text: String
     
+    // Coordinator zur Verwaltung der Suchleiste
     class Coordinator: NSObject, UISearchBarDelegate {
         @Binding var text: String
         
@@ -1279,10 +1417,12 @@ struct SearchBar: UIViewRepresentable {
             _text = text
         }
         
+        // Wird bei Texteingabe aufgerufen
         func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
             text = searchText
         }
         
+        // Schließt die Tastatur beim Suchen
         func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
             searchBar.resignFirstResponder()
         }
@@ -1306,11 +1446,13 @@ struct SearchBar: UIViewRepresentable {
     }
 }
 
+// ImagePicker: Ermöglicht das Auswählen oder Aufnehmen eines Bildes
 struct ImagePicker: UIViewControllerRepresentable {
     let sourceType: UIImagePickerController.SourceType
     @Binding var selectedImage: UIImage?
     @Binding var isPresented: Bool
 
+    // Coordinator verbindet UIKit mit SwiftUI
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         let parent: ImagePicker
 
@@ -1318,6 +1460,7 @@ struct ImagePicker: UIViewControllerRepresentable {
             self.parent = parent
         }
 
+        // Wird aufgerufen, wenn ein Bild ausgewählt wurde
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
                 parent.selectedImage = image
@@ -1325,6 +1468,7 @@ struct ImagePicker: UIViewControllerRepresentable {
             parent.isPresented = false
         }
 
+        // Wird aufgerufen, wenn der Nutzer abbricht
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.isPresented = false
         }
@@ -1344,6 +1488,7 @@ struct ImagePicker: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 }
 
+// Preview für die Hauptansicht
 #Preview {
     ContentView()
 }

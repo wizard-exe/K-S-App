@@ -5,9 +5,10 @@ import UIKit
 import Foundation
 
 class DataManager {
-    private let profilesKey = "profiles"
+    private let profilesKey = "profiles" // Schlüssel für UserDefaults
     private let correctionEndpoint = URL(string: "https://k-s-app-backend.onrender.com/korrigiere")!
 
+    // Lädt Profile aus dem persistenten Speicher (UserDefaults)
     func loadProfiles() -> [Profile] {
         if let data = UserDefaults.standard.data(forKey: profilesKey) {
             do {
@@ -20,6 +21,7 @@ class DataManager {
         return []
     }
 
+    // Speichert Profile im persistenten Speicher (UserDefaults)
     func saveProfiles(_ profiles: [Profile]) {
         do {
             let data = try JSONEncoder().encode(profiles)
@@ -29,6 +31,7 @@ class DataManager {
         }
     }
 
+    // Exportiert Profildaten (Checkliste oder LOP) als ZIP-Datei
     func exportData(profile: Profile, exportType: ExportType) -> URL? {
         let semaphore = DispatchSemaphore(value: 0)
         var finalURL: URL?
@@ -42,6 +45,7 @@ class DataManager {
         return finalURL
     }
 
+    // Exportiert Profildaten asynchron als ZIP-Datei
     private func exportDataAsync(profile: Profile, exportType: ExportType) async -> URL? {
         let fileManager = FileManager.default
         let exportFolderName = exportType == .checklist ? "Checklist" : "LOP"
@@ -74,6 +78,7 @@ class DataManager {
         }
     }
 
+    // Exportiert Bilder aus Checklistenpunkten in ein Zielverzeichnis
     private func exportChecklistImages(profile: Profile, to directory: URL) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var itemCounter = 1
@@ -101,6 +106,7 @@ class DataManager {
         }
     }
 
+    // Exportiert Bilder aus LOP-Einträgen in ein Zielverzeichnis
     private func exportLOPImages(profile: Profile, to directory: URL) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
@@ -118,6 +124,7 @@ class DataManager {
         }
     }
 
+    // Exportiert LOP-Einträge als CSV-Datei und korrigiert Kommentare online
     private func exportLOPCSV(profile: Profile, to directory: URL) async throws {
         let csvURL = directory.appendingPathComponent("LOP.csv")
         var csvText = "Nr.,Kommentar\n"
@@ -131,6 +138,7 @@ class DataManager {
         try csvText.write(to: csvURL, atomically: true, encoding: .utf8)
     }
 
+    // Korrigiert einen Kommentartext über einen externen Webservice
     private func correctComment(_ text: String) async -> String {
         var request = URLRequest(url: correctionEndpoint)
         request.httpMethod = "POST"
@@ -157,6 +165,7 @@ class DataManager {
         return text
     }
 
+    // Entfernt unerwünschte Zeichen aus Strings für Dateinamen
     private func sanitize(_ string: String) -> String {
         return string.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "\\", with: "_")
