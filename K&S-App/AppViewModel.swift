@@ -26,17 +26,32 @@ class AppViewModel: ObservableObject {
     // Speichert Profile im persistenten Speicher
     func saveProfiles() {
         dataManager.saveProfiles(profiles)
+        objectWillChange.send()
     }
 
     // Erstellt ein neues Profil mit Standard-Checklisten je nach Modus
     func createProfile(name: String, mode: AppMode) {
-        let checklist: [ChecklistCategory] = (mode == .wea) ? defaultWEACategories() : defaultPVCategories()
+        let checklist: [ChecklistCategory]
+        switch mode {
+        case .wea:
+            checklist = defaultWEACategories()
+        case .pv:
+            checklist = defaultPVCategories()
+        case .bess:
+            checklist = defaultBESSCategories()
+        case .domrep:
+            checklist = defaultDomRepCategories()
+        // Optional: default oder unknown case behandeln
+        default:
+            checklist = []
+        }
         let newProfile = Profile(name: name, mode: mode, checklists: checklist)
         profiles.append(newProfile)
         activeProfile = newProfile
         saveProfiles()
-        objectWillChange.send() // Aktualisiert UI
+        objectWillChange.send()
     }
+
 
     // Gibt Standard-Checklisten für WEA-Profil zurück
     private func defaultWEACategories() -> [ChecklistCategory] {
@@ -240,6 +255,7 @@ class AppViewModel: ObservableObject {
                         ChecklistItem(name: "Überspannungsschutz - Zustand"),
                         ChecklistItem(name: "Berührschutz"),
                         ChecklistItem(name: "Erdungspunkte und PE-Schiene Korrosion, fester Sitz"),
+                        ChecklistItem(name: "Elektrische AC-Anschlüsse am Wechselrichter"),
                         ChecklistItem(name: "Netzeinspeisung")
                     ]),
                     ChecklistSubcategory(name: "Elektrische und maschinenbauliche Komponenten", items: [
@@ -295,15 +311,112 @@ class AppViewModel: ObservableObject {
                         ChecklistItem(name: "Kantenschutz (Kabel)"),
                         ChecklistItem(name: "Kabelfixierung, UV-Beständigkeit"),
                         ChecklistItem(name: "Stringverkabelung"),
+                        ChecklistItem(name: "Stringkabel-Typ mit Querschnitt"),
                         ChecklistItem(name: "Kabelführung Gleichstrom"),
                         ChecklistItem(name: "Kabelführung Wechselstrom"),
                         ChecklistItem(name: "Steckverbinder"),
-                        ChecklistItem(name: "Leiterschlaufen und Biegeradien")
+                        ChecklistItem(name: "Leiterschlaufen und Biegeradien"),
+                        ChecklistItem(name: "Isolationsmessung")
                     ])
                 ])
             ]
         }
 
+    // Gibt Standard-Checklisten für BESS-Profil zurück
+    private func defaultBESSCategories() -> [ChecklistCategory] {
+        return [
+                ChecklistCategory(name: "Prüfbemerkungen", subcategories: [
+                    ChecklistSubcategory(name: "Kennzeichnung", items: [
+                        ChecklistItem(name: "Typenschild und CE-Kennzeichnung"),
+                        ChecklistItem(name: "Warnhinweise"),
+                        ChecklistItem(name: "Kabel und Wechselrichter logisch und sichtbar nummeriert")
+                    ]),
+                    ChecklistSubcategory(name: "Infrastruktur", items: [
+                        ChecklistItem(name: "Zugang"),
+                        ChecklistItem(name: "Entwässerungssystem"),
+                        ChecklistItem(name: "Sicherheit, Überwachung"),
+                        ChecklistItem(name: "Kommunikationsinfrastruktur")
+                    ]),
+                    ChecklistSubcategory(name: "Power Converter Station (PCS)", items: [
+                        ChecklistItem(name: "Allgemeine Bedingungen"),
+                        ChecklistItem(name: "Aufstellungsort"),
+                        ChecklistItem(name: "Pläne, Beschilderung, Kennzeichnung"),
+                        ChecklistItem(name: "Transformator"),
+                        ChecklistItem(name: "Transformator – Thermischer Schutz"),
+                        ChecklistItem(name: "Thermografie-Messung"),
+                        ChecklistItem(name: "Stationskeller"),
+                        ChecklistItem(name: "Mittelspannungsschalter"),
+                        ChecklistItem(name: "Erdung und Potentialausgleich"),
+                        ChecklistItem(name: "Kabelinstallation"),
+                        ChecklistItem(name: "Local Controller (LC)"),
+                        ChecklistItem(name: "Power Converter (PC)"),
+                        ChecklistItem(name: "Energiezähler")
+                    ]),
+                    ChecklistSubcategory(name: "Netzanschlussstation", items: [
+                        ChecklistItem(name: "Allgemeine Bedingungen"),
+                        ChecklistItem(name: "Aufstellungsort"),
+                        ChecklistItem(name: "Pläne, Beschilderung, Kennzeichnung"),
+                        ChecklistItem(name: "Transformator"),
+                        ChecklistItem(name: "Volle Betriebsfähigkeit Umspannwerk"),
+                        ChecklistItem(name: "Thermografie-Messung"),
+                        ChecklistItem(name: "Stationskeller"),
+                        ChecklistItem(name: "Mittelspannungsschalter"),
+                        ChecklistItem(name: "Erdung und Potentialausgleich"),
+                        ChecklistItem(name: "Kabelinstallation"),
+                        ChecklistItem(name: "Parkregler"),
+                        ChecklistItem(name: "Energiezähler")
+                    ]),
+                    ChecklistSubcategory(name: "Batterie-Energiespeichersystem (BESS)", items: [
+                        ChecklistItem(name: "Allgemeine Bedingungen"),
+                        ChecklistItem(name: "Aufstellungsort"),
+                        ChecklistItem(name: "Pläne, Beschilderung, Kennzeichnung"),
+                        ChecklistItem(name: "Transformator"),
+                        ChecklistItem(name: "Stationskeller"),
+                        ChecklistItem(name: "Mittelspannungsschalter"),
+                        ChecklistItem(name: "Wechselrichter"),
+                        ChecklistItem(name: "Flüssigkühlung Energiespeicher (LCESS)"),
+                        ChecklistItem(name: "LCESS-Kühlung"),
+                        ChecklistItem(name: "Battery Connecting Panel (BCP)"),
+                        ChecklistItem(name: "Batterieregal"),
+                        ChecklistItem(name: "Batteriepack"),
+                        ChecklistItem(name: "Energie-Management-System (EMS)"),
+                        ChecklistItem(name: "Erdung und Potentialausgleich"),
+                        ChecklistItem(name: "Kabelinstallation"),
+                        ChecklistItem(name: "Systemregler"),
+                        ChecklistItem(name: "Energiezähler")
+                    ]),
+                    ChecklistSubcategory(name: "Überwachungssystem", items: [
+                        ChecklistItem(name: "Hardware"),
+                        ChecklistItem(name: "Betriebsfunktionalität")
+                    ])
+                ])
+            ]
+        }
+    
+    // Gibt Standard-Checklisten für DomRep-Profil zurück
+    private func defaultDomRepCategories() -> [ChecklistCategory] {
+        return [
+                ChecklistCategory(name: "Prüfbemerkungen", subcategories: [
+                    ChecklistSubcategory(name: "Technische Eindrücke", items: [
+                        ChecklistItem(name: "Allgemeiner Zustand"),
+                        ChecklistItem(name: "Zaun"),
+                        ChecklistItem(name: "Wege"),
+                        ChecklistItem(name: "Fundament (Pfähle)"),
+                        ChecklistItem(name: "Unterkonstruktion"),
+                        ChecklistItem(name: "Modulmontage"),
+                        ChecklistItem(name: "Gestell-Erdung und Potentialausgleich"),
+                        ChecklistItem(name: "Gestell-Stabilität"),
+                        ChecklistItem(name: "Verschmutzung"),
+                        ChecklistItem(name: "Wechselrichterstation"),
+                        ChecklistItem(name: "Elektrische Infrastruktur"),
+                        ChecklistItem(name: "Umspannwerk"),
+                        ChecklistItem(name: "Anschlusskästen"),
+                        ChecklistItem(name: "Einstrahlungssensoren / Pyranometer")
+                    ])
+                ])
+            ]
+        }
+    
     // Löscht ein Profil samt aller zugehörigen Bilder
     func deleteProfile(_ profile: Profile) {
         if let index = profiles.firstIndex(where: { $0.id == profile.id }) {

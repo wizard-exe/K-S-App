@@ -93,13 +93,15 @@ class DataManager {
                         let imageName = "\(itemCounter)_\(index + 1)_\(sanitizedItemName).jpg"
                         let destination = directory.appendingPathComponent(imageName)
 
-                        if FileManager.default.fileExists(atPath: path) {
-                            try FileManager.default.copyItem(atPath: path, toPath: destination.path)
+                        // Bild exportieren, aber nie größer als 1 MB
+                        if FileManager.default.fileExists(atPath: path), let image = UIImage(contentsOfFile: path) {
+                            if let jpegData = jpegDataBelow1MB(for: image) {
+                                try jpegData.write(to: destination)
+                            }
                         } else {
                             print("Skipped missing file: \(path)")
                         }
                     }
-
                     itemCounter += 1
                 }
             }
@@ -115,13 +117,50 @@ class DataManager {
                 let imageName = "\(lopIndex + 1)_\(imageIndex + 1).jpg"
                 let destination = directory.appendingPathComponent(imageName)
 
-                if FileManager.default.fileExists(atPath: path) {
-                    try FileManager.default.copyItem(atPath: path, toPath: destination.path)
+                // Bild exportieren, aber nie größer als 1 MB
+                if FileManager.default.fileExists(atPath: path), let image = UIImage(contentsOfFile: path) {
+                    if let jpegData = jpegDataBelow1MB(for: image) {
+                        try jpegData.write(to: destination)
+                    }
                 } else {
                     print("Skipped missing file: \(path)")
                 }
             }
         }
+    }
+
+    // Gibt komprimiertes JPEG-Data < 1MB zurück (oder nil, falls nicht möglich)
+    private func jpegDataBelow1MB(for image: UIImage) -> Data? {
+        let maxFileSize: Int = 1_048_576 // 1 MB in Bytes
+        var compression: CGFloat = 0.8
+        let minCompression: CGFloat = 0.05
+        guard var data = image.jpegData(compressionQuality: compression) else { return nil }
+
+        // Solange das Bild zu groß ist und wir noch weiter komprimieren können:
+        while data.count > maxFileSize && compression > minCompression {
+            compression -= 0.05
+            if let compressedData = image.jpegData(compressionQuality: compression) {
+                data = compressedData
+            } else {
+                break
+            }
+        }
+
+        // Falls immer noch zu groß: versuchen, Bild zu verkleinern
+        while data.count > maxFileSize && image.size.width > 300 && image.size.height > 300 {
+            let newSize = CGSize(width: image.size.width * 0.8, height: image.size.height * 0.8)
+            UIGraphicsBeginImageContextWithOptions(newSize, false, image.scale)
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+            let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            if let resized = resizedImage, let resizedData = resized.jpegData(compressionQuality: compression) {
+                data = resizedData
+            } else {
+                break
+            }
+        }
+
+        return data.count <= maxFileSize ? data : nil
     }
 
     // Exportiert LOP-Einträge als CSV-Datei und korrigiert Kommentare online

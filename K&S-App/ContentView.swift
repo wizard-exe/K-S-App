@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // Die ContentView ist der Einstiegspunkt der App und steuert die Hauptnavigation
 struct ContentView: View {
@@ -132,8 +133,10 @@ struct CreateProfileView: View {
                     Picker("Modus", selection: $selectedMode) {
                         Text("Windenergieanlage").tag(AppMode.wea)
                         Text("Photovoltaik").tag(AppMode.pv)
+                        Text("BESS").tag(AppMode.bess)
+                        Text("DomRep").tag(AppMode.domrep)
                     }
-                    .pickerStyle(SegmentedPickerStyle())
+                    .pickerStyle(WheelPickerStyle())
                 }
             }
             .navigationBarTitle("Neues Profil", displayMode: .inline)
@@ -275,7 +278,7 @@ struct SidebarView: View {
 struct MainView: View {
     @EnvironmentObject var viewModel: AppViewModel
     let profile: Profile
-    @State private var selectedTab = 0
+    @AppStorage("SelectedTabIndex") private var selectedTab = 0
 
     var body: some View {
         // TabView für die vier Hauptbereiche der App
@@ -323,20 +326,166 @@ struct ChecklistView: View {
     @EnvironmentObject var viewModel: AppViewModel
 
     var body: some View {
-        List {
-            // Für jede Kategorie eine Section
-            ForEach(viewModel.filteredChecklists) { category in
-                Section(header: Text(category.name).font(.headline)) {
-                    // Unterkategorien als Navigationslinks anzeigen
-                    ForEach(category.subcategories) { subcategory in
-                        NavigationLink(destination: ChecklistSubcategoryItemListView(category: category, subcategory: subcategory)) {
-                            Text(subcategory.name)
+        VStack(spacing: 0) {
+            // Suchleiste mit Lupe
+            SearchBar(text: $viewModel.searchQuery)
+                .padding(.horizontal, 8)
+                .padding(.top, 6)
+
+            List {
+                if let profile = viewModel.activeProfile {
+                    ForEach(filteredCategories(profile: profile)) { category in
+                        let filteredSubcategories = self.filteredSubcategories(category: category)
+                        if !filteredSubcategories.isEmpty {
+                            Section(header: Text(category.name).font(.headline)) {
+                                ForEach(filteredSubcategories) { subcategory in
+                                    let filteredItems = self.filteredItems(subcategory: subcategory)
+                                    if !filteredItems.isEmpty {
+                                        NavigationLink(
+                                            destination: ChecklistSubcategoryItemListViewFiltered(
+                                                category: category,
+                                                subcategory: subcategory,
+                                                filteredItems: filteredItems
+                                            )
+                                        ) {
+                                            ChecklistSubcategoryRowView(
+                                                name: subcategory.name,
+                                                observer: SubcategoryCompletionObserver(items: filteredItems)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Checkliste")
         }
-        .navigationTitle("Checkliste")
+    }
+
+    // Kategorien filtern: Nur behalten, wenn darunter Subkategorien mit Items sind, die zum Suchtext passen
+    private func filteredCategories(profile: Profile) -> [ChecklistCategory] {
+        guard !viewModel.searchQuery.isEmpty else { return profile.checklists }
+        return profile.checklists.filter { category in
+            category.subcategories.contains { sub in
+                filteredItems(subcategory: sub).count > 0
+            }
+        }
+    }
+
+    // Subkategorien filtern: Nur behalten, wenn darin Items zum Suchtext passen
+    private func filteredSubcategories(category: ChecklistCategory) -> [ChecklistSubcategory] {
+        guard !viewModel.searchQuery.isEmpty else { return category.subcategories }
+        return category.subcategories.filter { sub in
+            filteredItems(subcategory: sub).count > 0
+        }
+    }
+
+    // Items filtern: Nur behalten, wenn der Item-Name zum Suchtext passt
+    private func filteredItems(subcategory: ChecklistSubcategory) -> [ChecklistItem] {
+        guard !viewModel.searchQuery.isEmpty else { return subcategory.items }
+        return subcategory.items.filter { item in
+            item.name.localizedCaseInsensitiveContains(viewModel.searchQuery)
+        }
+    }
+}
+
+//Zeigt gefilterte Items einer Subkategorie an (für NavigationLink im Filter-Modus)
+struct ChecklistSubcategoryItemListViewFiltered: View {
+    @EnvironmentObject var viewModel: AppViewModel
+    let category: ChecklistCategory
+    let subcategory: ChecklistSubcategory
+    let filteredItems: [ChecklistItem]
+
+    @State private var showImagePicker = false
+    @State private var selectedItemIndex: Int? = nil
+    @State private var sourceType: UIImagePickerController.SourceType = .camera
+    @State private var selectedImage: UIImage?
+    @State private var navigationTargetIndex: Int? = nil
+
+    var body: some View {
+        List {
+            ForEach(filteredItems.indices, id: \.self) { index in
+                let item = filteredItems[index]
+                HStack(spacing: 12) {
+                    Button(action: {
+                        if let globalItem = globalBinding(for: item) {
+                            globalItem.isCompleted.wrappedValue.toggle()
+                            viewModel.saveProfiles()
+                        }
+                    }) {
+                        Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
+                            .resizable()
+                            .frame(width: 24, height: 24)
+                            .foregroundColor(Color("KSBlue"))
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+
+                    Text(item.name)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+
+                    Spacer()
+
+                    HStack {
+                        Button(action: {
+                            sourceType = .camera
+                            selectedItemIndex = index
+                            showImagePicker = true
+                        }) {
+                            Image(systemName: "camera")
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+
+                        Button(action: {
+                            navigationTargetIndex = index
+                        }) {
+                            Image(systemName: "info.circle")
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+
+                        ZStack {
+                            NavigationLink(
+                                destination: detailView(for: item),
+                                tag: index,
+                                selection: $navigationTargetIndex,
+                                label: { EmptyView() }
+                            )
+                            .frame(width: 0, height: 0)
+                            .hidden()
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+        }
+        .navigationTitle(subcategory.name)
+    }
+
+    // Liefert das globale Binding zum Item (wichtig für Status-Updates!)
+    func globalBinding(for filteredItem: ChecklistItem) -> Binding<ChecklistItem>? {
+        guard let profile = viewModel.activeProfile,
+              let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == profile.id }),
+              let categoryIndex = viewModel.profiles[profileIndex].checklists.firstIndex(where: { $0.id == category.id }),
+              let subcategoryIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories.firstIndex(where: { $0.id == subcategory.id }),
+              let itemIndex = viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items.firstIndex(where: { $0.id == filteredItem.id })
+        else { return nil }
+        return $viewModel.profiles[profileIndex].checklists[categoryIndex].subcategories[subcategoryIndex].items[itemIndex]
+    }
+
+    // Navigiert zur Detailansicht für das Item
+    private func detailView(for item: ChecklistItem) -> some View {
+        if let global = globalBinding(for: item) {
+            return AnyView(ChecklistItemDetailView(
+                category: category,
+                subcategory: subcategory,
+                itemIndex: 0, // index für filtered view ist irrelevant!
+                item: global
+            ).environmentObject(viewModel))
+        }
+        return AnyView(EmptyView())
     }
 }
 
@@ -344,6 +493,48 @@ struct ChecklistView: View {
 extension Int: Identifiable {
     public var id: Int { self }
 }
+
+struct ChecklistSubcategoryRowView: View {
+    let name: String
+    @ObservedObject var observer: SubcategoryCompletionObserver
+
+    var body: some View {
+        HStack {
+            Text(name)
+            Spacer()
+            if observer.allCompleted {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            }
+        }
+    }
+}
+
+class SubcategoryCompletionObserver: ObservableObject {
+    @Published var allCompleted: Bool = false
+
+    private var cancellables: [AnyCancellable] = []
+
+    init(items: [ChecklistItem]) {
+        update(items: items)
+    }
+
+    func update(items: [ChecklistItem]) {
+        cancellables.removeAll()
+        allCompleted = items.allSatisfy { $0.isCompleted }
+
+        for item in items {
+            item.objectWillChange
+                .sink { [weak self] _ in
+                    DispatchQueue.main.async {
+                        self?.allCompleted = items.allSatisfy { $0.isCompleted }
+                    }
+                }
+                .store(in: &cancellables)
+        }
+    }
+}
+
 
 // Zeigt alle Items einer Unterkategorie an, inkl. Status und Bilder
 struct ChecklistSubcategoryItemListView: View {
@@ -439,7 +630,7 @@ struct ChecklistSubcategoryItemListView: View {
         .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
-                    // Nach der Bildauswahl: Bild abspeichern und dem Item hinzufügen
+                    // Bild abspeichern und dem Item hinzufügen
                     if let index = selectedItemIndex,
                        let image = selectedImage,
                        let path = viewModel.saveImage(image),
@@ -453,6 +644,7 @@ struct ChecklistSubcategoryItemListView: View {
                     }
                 }
         }
+
     }
 
     // Liefert die Detail-Ansicht eines Items zurück
@@ -598,17 +790,14 @@ struct ChecklistItemDetailView: View {
         // Vollbild-ImagePicker für Fotos
         .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
-                .onDisappear {
-                    DispatchQueue.main.async {
-                        // Nach der Bildauswahl: zum Item hinzufügen und speichern
-                        if let image = selectedImage,
-                           let path = viewModel.saveImage(image) {
-                            item.images.append(path)
-                            viewModel.saveProfiles()
-                            selectedImage = nil
-                        }
-                    }
-                }
+        }
+        .onChange(of: selectedImage) { newImage in
+            if let image = newImage,
+               let path = viewModel.saveImage(image) {
+                item.images.append(path)
+                viewModel.saveProfiles()
+                selectedImage = nil
+            }
         }
         // Vollbildanzeige für Bildansicht
         .fullScreenCover(isPresented: $showingFullScreenImage) {
@@ -619,6 +808,7 @@ struct ChecklistItemDetailView: View {
         }
     }
 }
+
 // LOPView zeigt die Übersicht und Verwaltung aller LOP-Einträge eines Profils
 struct LOPView: View {
     @EnvironmentObject var viewModel: AppViewModel
@@ -628,24 +818,24 @@ struct LOPView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Liste aller LOP-Einträge mit Swipe-to-Delete und Navigation zu Details
             List {
+                // KEINE BILDER MEHR in der Übersicht!
                 ForEach(viewModel.activeProfile?.lopItems ?? []) { lopItem in
-                    NavigationLink(destination: LOPItemDetailView(lopItem: lopItem)) {
-                        VStack(alignment: .leading) {
-                            // Titel (z. B. LOP-1, LOP-2, ...)
+                    NavigationLink(destination: LOPItemDetailView(lopItemId: lopItem.id)) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(lopItem.title)
                                 .font(.headline)
-
-                            // Optionaler Kommentar, Vorschau
-                            if !lopItem.comment.isEmpty {
-                                Text(lopItem.comment)
-                                    .font(.subheadline)
-                                    .lineLimit(2)
+                            // Kommentar immer aktuell (persistenter Zugriff)
+                            if let updatedComment = self.updatedComment(for: lopItem) {
+                                if !updatedComment.isEmpty {
+                                    Text(updatedComment)
+                                        .font(.subheadline)
+                                        .lineLimit(2)
+                                }
                             }
                         }
+                        .padding(.vertical, 4)
                     }
-                    // Swipe-Action zum Löschen eines Eintrags
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             lopItemToDelete = lopItem
@@ -660,7 +850,6 @@ struct LOPView: View {
             .navigationTitle("LOP")
             .navigationBarBackButtonHidden(true)
 
-            // Button zum Hinzufügen eines neuen LOP-Eintrags
             Button(action: {
                 showAddLOP = true
             }) {
@@ -676,12 +865,10 @@ struct LOPView: View {
                 .padding()
             }
         }
-        // Sheet für das Hinzufügen eines neuen LOP-Eintrags
         .sheet(isPresented: $showAddLOP) {
             AddLOPItemView()
                 .environmentObject(viewModel)
         }
-        // Bestätigungsdialog zum Löschen eines LOP-Eintrags
         .alert(isPresented: $showDeleteConfirmation) {
             Alert(
                 title: Text("LOP-Eintrag löschen"),
@@ -696,48 +883,51 @@ struct LOPView: View {
         }
     }
 
-    // Löscht den gewählten LOP-Eintrag samt Bilder aus dem Profil
+    // Holt den aktuellen Kommentar aus dem ViewModel (immer live, nie aus alter Liste)
+    private func updatedComment(for lopItem: LOPItem) -> String? {
+        guard let profile = viewModel.activeProfile,
+              let idx = viewModel.profiles.firstIndex(where: { $0.id == profile.id }),
+              let lidx = viewModel.profiles[idx].lopItems.firstIndex(where: { $0.id == lopItem.id }) else { return lopItem.comment }
+        return viewModel.profiles[idx].lopItems[lidx].comment
+    }
+
     private func deleteLOPItem(_ item: LOPItem) {
         guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
               let itemIndex = viewModel.profiles[profileIndex].lopItems.firstIndex(where: { $0.id == item.id }) else {
             return
         }
-
-        // Zugehörige Bilder löschen
         for imagePath in viewModel.profiles[profileIndex].lopItems[itemIndex].images {
             viewModel.deleteImage(at: imagePath)
         }
-
-        // LOP-Eintrag aus der Liste entfernen und speichern
         viewModel.profiles[profileIndex].lopItems.remove(at: itemIndex)
         viewModel.saveProfiles()
     }
 }
 
-// AddLOPItemView ermöglicht das Hinzufügen eines neuen LOP-Eintrags mit Kommentar und Bildern
+// AddLOPItemView: Zum Hinzufügen eines neuen LOP-Eintrags mit beliebig vielen Bildern
 struct AddLOPItemView: View {
     @EnvironmentObject var viewModel: AppViewModel
     @Environment(\.presentationMode) var presentationMode
 
     @State private var comment = ""
+    @State private var imagePaths: [String] = []
     @State private var showImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .camera
     @State private var selectedImage: UIImage?
-    @State private var imagePaths: [String] = []
+    @State private var showingFullScreenImage = false
+    @State private var fullScreenImagePath: String?
 
     var body: some View {
         NavigationView {
             Form {
-                // Textfeld für Kommentar
+                // Kommentar-Eingabefeld
                 Section(header: Text("Kommentar")) {
                     TextEditor(text: $comment)
                         .frame(minHeight: 100)
                 }
-
-                // Bereich für Bilder (Kamera/Galerie), Bildervorschau und Löschen
+                // Bild-Bereich (Kamera/Galerie & Scrollbar)
                 Section(header: Text("Bilder")) {
                     HStack {
-                        // Foto aufnehmen
                         Button(action: {
                             sourceType = .camera
                             showImagePicker = true
@@ -747,8 +937,10 @@ struct AddLOPItemView: View {
                                 Text("Foto aufnehmen")
                             }
                         }
+                        .buttonStyle(BorderlessButtonStyle())
+                        
                         Spacer()
-                        // Aus Galerie wählen
+                        
                         Button(action: {
                             sourceType = .photoLibrary
                             showImagePicker = true
@@ -758,29 +950,39 @@ struct AddLOPItemView: View {
                                 Text("Aus Galerie")
                             }
                         }
+                        .buttonStyle(BorderlessButtonStyle())
                     }
-
-                    // Bildvorschau mit Option zum Löschen per Kontextmenü
+                    // Horizontale Bild-Vorschau-Scrollbar mit Tap für Fullscreen
                     if !imagePaths.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
+                            HStack(spacing: 16) {
                                 ForEach(imagePaths, id: \.self) { path in
                                     if let uiImage = UIImage(contentsOfFile: path) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 100, height: 100)
-                                            .cornerRadius(8)
-                                            .contextMenu {
-                                                Button(role: .destructive) {
-                                                    viewModel.deleteImage(at: path)
-                                                    if let index = imagePaths.firstIndex(of: path) {
-                                                        imagePaths.remove(at: index)
-                                                    }
-                                                } label: {
-                                                    Label("Löschen", systemImage: "trash")
+                                        ZStack(alignment: .topTrailing) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 100, height: 100)
+                                                .cornerRadius(8)
+                                                .clipped()
+                                                .onTapGesture {
+                                                    // Bild im Vollbild öffnen
+                                                    fullScreenImagePath = path
+                                                    showingFullScreenImage = true
                                                 }
+                                            // Bild löschen
+                                            Button(action: {
+                                                withAnimation {
+                                                    viewModel.deleteImage(at: path)
+                                                    imagePaths.removeAll { $0 == path }
+                                                }
+                                            }) {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .foregroundColor(.red)
+                                                    .background(Color.white.clipShape(Circle()))
                                             }
+                                            .offset(x: -8, y: 8)
+                                        }
                                     }
                                 }
                             }
@@ -791,24 +993,19 @@ struct AddLOPItemView: View {
             .navigationTitle("Neuer LOP-Eintrag")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
-                // Abbrechen: Löscht aufgenommene Bilder und schließt das Sheet
                 leading: Button("Abbrechen") {
+                    // Noch nicht gespeicherte Bilder wieder löschen
                     for path in imagePaths {
                         viewModel.deleteImage(at: path)
                     }
                     presentationMode.wrappedValue.dismiss()
                 }
                 .foregroundColor(.white),
-                // Speichern: LOP-Eintrag hinzufügen
                 trailing: Button("Speichern") {
                     guard let profile = viewModel.activeProfile,
                           let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
-
-                    // Erzeugt neuen LOP-Eintrag mit eindeutiger Nummer
                     let lopNumber = viewModel.profiles[profileIndex].lopItems.count + 1
                     let lopItem = LOPItem(title: "LOP-\(lopNumber)", comment: comment, images: imagePaths)
-
-                    // Eintrag zum Profil hinzufügen und speichern
                     presentationMode.wrappedValue.dismiss()
                     DispatchQueue.main.async {
                         viewModel.profiles[profileIndex].lopItems.append(lopItem)
@@ -821,53 +1018,99 @@ struct AddLOPItemView: View {
             )
         }
         .navigationBarBackButtonHidden(true)
-        // Sheet für ImagePicker (Kamera oder Galerie)
-        .sheet(isPresented: $showImagePicker) {
+        // Vollbild-ImagePicker (Kamera/Galerie)
+        .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
-                    // Nach der Bildauswahl: Zum Eintrag hinzufügen
                     if let image = selectedImage, let path = viewModel.saveImage(image) {
                         imagePaths.append(path)
                         selectedImage = nil
                     }
                 }
         }
+        // Vollbildanzeige für Bild (FullScreenImageWrapper als Standard deiner App)
+        .fullScreenCover(isPresented: $showingFullScreenImage) {
+            FullScreenImageWrapper(path: fullScreenImagePath, isPresented: $showingFullScreenImage)
+        }
     }
 }
 
-// LOPItemDetailView zeigt und bearbeitet einen einzelnen LOP-Eintrag (Kommentar + Bilder)
+// Zeigt ein einzelnes Bild im Fullscreen (aus Pfad geladen), mit einfachem "Schließen"-Button oben rechts.
+// Kann als Wrapper für LOP, Checklist und Plattform genutzt werden.
+struct FullScreenImageWrapper: View {
+    let path: String?
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            // Bild anzeigen, wenn Pfad vorhanden und Bild ladbar
+            if let path = path, let uiImage = UIImage(contentsOfFile: path) {
+                Color.black.ignoresSafeArea() // Hintergrund
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                    .ignoresSafeArea()
+            } else {
+                // Fallback, falls Bild fehlt
+                Color.black.ignoresSafeArea()
+                VStack {
+                    Spacer()
+                    Text("Bild nicht gefunden")
+                        .foregroundColor(.white)
+                        .font(.headline)
+                    Spacer()
+                }
+            }
+
+            // Schließen-Button
+            Button(action: {
+                isPresented = false
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .resizable()
+                    .frame(width: 38, height: 38)
+                    .foregroundColor(.white)
+                    .shadow(radius: 10)
+                    .padding(20)
+            }
+        }
+        .statusBar(hidden: true)
+    }
+}
+
+// Detailansicht eines einzelnen LOP-Eintrags mit Fullscreen-Image
 struct LOPItemDetailView: View {
     @EnvironmentObject var viewModel: AppViewModel
-    let lopItem: LOPItem
-    
+    let lopItemId: UUID
+
     @State private var showImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .camera
     @State private var selectedImage: UIImage?
     @State private var showingFullScreenImage = false
     @State private var fullScreenImagePath: String?
-    @State private var comment: String
-    @State private var imagePaths: [String]
-    
-    // Initialisiert die State-Werte mit den aktuellen Daten des Eintrags
-    init(lopItem: LOPItem) {
-        self.lopItem = lopItem
-        _comment = State(initialValue: lopItem.comment)
-        _imagePaths = State(initialValue: lopItem.images)
+
+    private var lopItemIndex: (profileIndex: Int, lopIndex: Int)? {
+        guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
+              let lopIndex = viewModel.profiles[profileIndex].lopItems.firstIndex(where: { $0.id == lopItemId }) else { return nil }
+        return (profileIndex, lopIndex)
     }
-    
+
     var body: some View {
         Form {
-            // Kommentarbereich
             Section(header: Text("Kommentar")) {
-                TextEditor(text: $comment)
+                if let idx = lopItemIndex {
+                    TextEditor(text: Binding(
+                        get: { viewModel.profiles[idx.profileIndex].lopItems[idx.lopIndex].comment },
+                        set: { newValue in
+                            viewModel.profiles[idx.profileIndex].lopItems[idx.lopIndex].comment = newValue
+                            viewModel.saveProfiles()
+                        }
+                    ))
                     .frame(minHeight: 100)
-                    .onChange(of: comment) { newValue in
-                        // Änderungen sofort im Model speichern
-                        updateLOPItem()
-                    }
+                }
             }
-            
-            // Bilderbereich mit Fotoaufnahme, Galerie, Vorschau und Löschen
             Section(header: Text("Bilder")) {
                 HStack {
                     Button(action: {
@@ -879,6 +1122,7 @@ struct LOPItemDetailView: View {
                             Text("Foto aufnehmen")
                         }
                     }
+                    .buttonStyle(BorderlessButtonStyle())
                     Spacer()
                     Button(action: {
                         sourceType = .photoLibrary
@@ -889,36 +1133,41 @@ struct LOPItemDetailView: View {
                             Text("Aus Galerie")
                         }
                     }
+                    .buttonStyle(BorderlessButtonStyle())
                 }
-                
-                // Bildvorschau mit Vollbild- und Löschfunktion
-                if !imagePaths.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(imagePaths, id: \.self) { path in
-                                if let uiImage = UIImage(contentsOfFile: path) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 100, height: 100)
-                                        .cornerRadius(8)
-                                        .onTapGesture {
-                                            // Bild im Vollbild anzeigen
-                                            fullScreenImagePath = path
-                                            showingFullScreenImage = true
-                                        }
-                                        .contextMenu {
-                                            Button(role: .destructive) {
-                                                // Bild löschen und im Model aktualisieren
-                                                viewModel.deleteImage(at: path)
-                                                if let index = imagePaths.firstIndex(of: path) {
-                                                    imagePaths.remove(at: index)
-                                                    updateLOPItem()
+                if let idx = lopItemIndex {
+                    let images = viewModel.profiles[idx.profileIndex].lopItems[idx.lopIndex].images
+                    if !images.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 16) {
+                                ForEach(images, id: \.self) { path in
+                                    if let uiImage = UIImage(contentsOfFile: path), !path.isEmpty {
+                                        ZStack(alignment: .topTrailing) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 100, height: 100)
+                                                .cornerRadius(8)
+                                                .clipped()
+                                                .onTapGesture {
+                                                    // Bild in Vollbild öffnen
+                                                    fullScreenImagePath = path
+                                                    showingFullScreenImage = true
                                                 }
-                                            } label: {
-                                                Label("Löschen", systemImage: "trash")
+                                            Button(action: {
+                                                withAnimation {
+                                                    viewModel.deleteImage(at: path)
+                                                    viewModel.profiles[idx.profileIndex].lopItems[idx.lopIndex].images.removeAll { $0 == path }
+                                                    viewModel.saveProfiles()
+                                                }
+                                            }) {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .foregroundColor(.red)
+                                                    .background(Color.white.clipShape(Circle()))
                                             }
+                                            .offset(x: -8, y: 8)
                                         }
+                                    }
                                 }
                             }
                         }
@@ -926,37 +1175,28 @@ struct LOPItemDetailView: View {
                 }
             }
         }
-        .navigationTitle(lopItem.title)
-        // Sheet für Kamera oder Galerie
-        .sheet(isPresented: $showImagePicker) {
+        .navigationTitle(lopItem?.title ?? "LOP-Detail")
+        .fullScreenCover(isPresented: $showImagePicker) {
             ImagePicker(sourceType: sourceType, selectedImage: $selectedImage, isPresented: $showImagePicker)
                 .onDisappear {
-                    if let image = selectedImage, let path = viewModel.saveImage(image) {
-                        imagePaths.append(path)
-                        updateLOPItem()
+                    if let idx = lopItemIndex, let image = selectedImage, let path = viewModel.saveImage(image) {
+                        viewModel.profiles[idx.profileIndex].lopItems[idx.lopIndex].images.append(path)
+                        viewModel.saveProfiles()
                         selectedImage = nil
                     }
                 }
         }
-        // Vollbildanzeige für Bilder
         .fullScreenCover(isPresented: $showingFullScreenImage) {
-            if let path = fullScreenImagePath, let uiImage = UIImage(contentsOfFile: path) {
-                FullScreenImageView(image: uiImage, isPresented: $showingFullScreenImage)
-            }
+            FullScreenImageWrapper(path: fullScreenImagePath, isPresented: $showingFullScreenImage)
         }
     }
-    
-    // Speichert Änderungen am LOP-Eintrag (Kommentar und Bilder) zurück ins Model
-    private func updateLOPItem() {
-        guard let profileIndex = viewModel.profiles.firstIndex(where: { $0.id == viewModel.activeProfile?.id }),
-              let lopIndex = viewModel.profiles[profileIndex].lopItems.firstIndex(where: { $0.id == lopItem.id }) else {
-            return
-        }
-        viewModel.profiles[profileIndex].lopItems[lopIndex].comment = comment
-        viewModel.profiles[profileIndex].lopItems[lopIndex].images = imagePaths
-        viewModel.saveProfiles()
+
+    private var lopItem: LOPItem? {
+        guard let idx = lopItemIndex else { return nil }
+        return viewModel.profiles[idx.profileIndex].lopItems[idx.lopIndex]
     }
 }
+
 
 // PlattformenView: Zeigt die Liste aller Plattformen eines Profils an und erlaubt Hinzufügen und Löschen.
 struct PlattformenView: View {
@@ -1356,52 +1596,36 @@ struct SettingsView: View {
     }
 }
 
-// Zeigt ein Bild im Vollbild mit Zoom-Geste
+// Für die Vollbildanzeige und Zoom-Geste eines Bildes
 struct FullScreenImageView: View {
     let image: UIImage
     @Binding var isPresented: Bool
     @State private var scale: CGFloat = 1.0
-    
+
     var body: some View {
-        ZStack {
-            Color.black.edgesIgnoringSafeArea(.all)
-            
-            // Das eigentliche Bild mit Zoom-Möglichkeit
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
                 .scaleEffect(scale)
-                .gesture(
-                    MagnificationGesture()
-                        .onChanged { value in
-                            scale = value
-                        }
-                        .onEnded { _ in
-                            withAnimation {
-                                scale = 1.0
-                            }
-                        }
-                )
-                .onTapGesture(count: 2) {
-                    withAnimation {
-                        scale = scale == 1.0 ? 2.0 : 1.0
+                .gesture(MagnificationGesture()
+                    .onChanged { value in
+                        scale = max(1.0, value)
                     }
-                }
-        }
-        // Schließen-Button oben rechts
-        .overlay(
-            Button(action: {
-                isPresented = false
-            }) {
-                Image(systemName: "xmark")
+                )
+                .background(Color.black)
+                .ignoresSafeArea()
+            Button(action: { isPresented = false }) {
+                Image(systemName: "xmark.circle.fill")
+                    .resizable()
+                    .frame(width: 40, height: 40)
                     .foregroundColor(.white)
-                    .padding()
-                    .background(Color.black.opacity(0.6))
+                    .background(Color.black.opacity(0.5))
                     .clipShape(Circle())
             }
-            .padding(),
-            alignment: .topTrailing
-        )
+            .padding([.top, .trailing], 30)
+        }
     }
 }
 
